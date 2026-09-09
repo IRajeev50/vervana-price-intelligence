@@ -1,0 +1,32 @@
+# Local development stack. NOT required by `make test` (tests run offline on SQLite).
+# Postgres is here so M1's schema/migrations can target the real production engine.
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: vervana
+      POSTGRES_PASSWORD: vervana_dev_only
+      POSTGRES_DB: vervana
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vervana"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      VERVANA_ENVIRONMENT: development
+      VERVANA_DATABASE_URL: postgresql+psycopg://vervana:vervana_dev_only@postgres:5432/vervana
+    # M0: prove the CLI runs inside the container. Real services (API, cron) are wired later.
+    command: ["healthcheck"]
+
+volumes:
+  pgdata:

@@ -1,0 +1,111 @@
+# Seed definitions for the 12 risks named in the build spec (Part 2).
+#
+# This file is the ONLY hand-maintained part of the risk system. It records what
+# each risk *means* and the evidence against the assumption. The live "where is
+# this tagged in code" section of docs/RISK_REGISTER.md is generated purely by
+# grepping the codebase for `RISK[<ID>]:` — it is never hand-edited.
+#
+# A risk listed here with zero code occurrences is one we have committed to tag
+# but have not yet reached in code. A `RISK[...]` tag in code whose ID is not in
+# this file is flagged by the generator as an unknown/undeclared risk.
+
+risks:
+  - id: R1-INFO-CHANGES-BEHAVIOUR
+    assumption: Giving people better price data changes their decisions.
+    evidence: >-
+      Mitra, Mookherjee, Torero & Visaria (2017): a 72-village West Bengal RCT
+      delivered daily wholesale mandi prices to potato farmers for 11 months and
+      found no significant impact on average farm-gate prices or quantities sold
+      (high- and low-price effects cancelled).
+      https://people.bu.edu/dilipm/publications/MMTV_18537_Paper.pdf
+    note: >-
+      Independent doubt (UNDERSTANDING.md 3.3): this is farmer-side evidence; the
+      product's stated buyer (R2) is a HoReCa procurement buyer whose decision
+      context differs and may be more information-elastic. Test on the real buyer.
+
+  - id: R2-BEACHHEAD
+    assumption: Delhi mandi traders are the first customers.
+    evidence: >-
+      Traders generate the price at 5 AM (Azadpur alone: 2,224 licensed traders,
+      https://www.apmcazadpurdelhi.com/home/about). The study ranks them LAST on
+      willingness to pay and HoReCa chains FIRST.
+
+  - id: R3-VIDEO-PROVENANCE
+    assumption: Video-quoted ranges are near-executed "aadat" prices comparable to trades.
+    evidence: Never measured. The ground-truth study (M5) compares video quotes to trader invoices.
+
+  - id: R4-WEAK-GROUND-TRUTH
+    assumption: Agmarknet validates video quotes.
+    evidence: >-
+      DMI disclaims its own data's authenticity; in Aug 2025 the Assam marketing
+      board was formally pulled up for markets submitting no data for a single day
+      across Jun–Jul 2025. Validating noise against noise identifies nothing. The
+      ground truth is trader invoices; Agmarknet is a third comparator.
+      https://www.sentinelassam.com/topheadlines/assam-marketing-board-pulled-up-for-not-updating-data-on-agmarknet-portal
+
+  - id: R5-COVERAGE-EDGE
+    assumption: Agmarknet's Delhi coverage is bad enough that we beat it.
+    evidence: >-
+      Unmeasured, and the entire product edge rests on it. The documented failure
+      is Assam, not Delhi. M2 measures this. If Delhi coverage exceeds 90% of
+      commodity-days with same-day reporting, the coverage advantage does not exist
+      and only intraday timing remains.
+
+  - id: R6-MOAT-MODEL-GAP
+    assumption: The video corpus is the defensibility AND the model trains on Agmarknet history.
+    evidence: >-
+      Both cannot be load-bearing. Log feature importance every training run and
+      report the aggregate contribution of video-derived features; under 5% means
+      the corpus does not defend the forecast.
+
+  - id: R7-FORECAST-BAR
+    assumption: Gradient boosting beats naive baselines on next-day F&V prices.
+    evidence: >-
+      Daily fresh-produce prices are close to a random walk with weather shocks.
+      With ~90 observations per series there is not enough history for tree models
+      to generalise per-series, and none for deep learning. Baselines must always
+      be computed and reported.
+
+  - id: R8-YOUTUBE-TOS
+    assumption: The corpus is both a legal risk and a defensible asset.
+    evidence: >-
+      It cannot be both. An asset that cannot enter a data room is a private
+      research seed, not a moat. See Gate 1 (YouTube ToS vs s.52 fair dealing).
+
+  - id: R9-NOT-IP
+    assumption: The dataset is proprietary IP.
+    evidence: >-
+      Eastern Book Company v. D.B. Modak (SC of India, 2008) applies a "modicum of
+      creativity" test and does not protect bare factual compilations. Prices are
+      facts. Only the entity-resolution work involves the editorial judgment that
+      could attract protection.
+      https://lukeandluka.in/insights/eastern-book-company-v-db-modak-copyright-judicial-decisions-2008/
+
+  - id: R10-QCOMM-SOURCING
+    assumption: Buying quick-commerce feeds from data vendors is compliant.
+    evidence: Moves the terms-of-service breach one party away rather than removing it.
+
+  - id: R11-RECORDER-CONFLICT
+    assumption: Commission agents can be paid to report prices reliably.
+    evidence: >-
+      They hold positions in the commodities they report — a structural conflict.
+      Schema must record each observer's identity and whether they trade in what
+      they report.
+
+  - id: R12-RECORDER-ECONOMICS
+    assumption: The platform scales like software.
+    evidence: >-
+      Observer payroll scales linearly with mandi count, against a ₹6.6 crore NCR
+      SAM. Emit an estimated monthly observer cost wherever a mandi is added.
+
+  # Candidate new risk raised in UNDERSTANDING.md 3.5, to be tagged when the
+  # modelling/deviation code is written (M4/M5). Declared here so the register
+  # tracks it as "committed, not yet reached in code".
+  - id: R13-RANGE-MIDPOINT
+    assumption: The midpoint of a quoted range is the representative price for modelling and deviation.
+    evidence: >-
+      The data model deliberately refuses to collapse ranges at write time
+      (price_low/price_high primary). But forecasting needs a scalar series and
+      §5.2 computes deviation on the range midpoint, so "midpoint = the price" is an
+      unavoidable modelling-layer assumption. Skew, thin tails, and quote-vs-trade
+      spread all violate it. Raised by the lead engineer; not in the original 12.

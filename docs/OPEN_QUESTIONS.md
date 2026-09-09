@@ -1,0 +1,15 @@
+# OPEN QUESTIONS
+
+Things neither the spec nor available evidence has settled. Each has an owner and a
+milestone by which it must be answered.
+
+| # | Question | Raised by | Needed by | Status |
+|---|---|---|---|---|
+| 1 | **eNAM API access.** No documented open API for eNAM executed e-auction prices was found; only a live dashboard exists. How do we access it lawfully and reliably? | §4.4 | M7 | OPEN — connector interface built as a stub; access method unresolved. |
+| 2 | **GODL-India exact clause text.** data.gov.in operates under the Government Open Data License – India (permits commercial reuse with attribution), but the terms page is robots.txt-blocked and the exact clause text could not be read. Confirm attribution wording + any conditions. | §4.1 | M2 (before Agmarknet data is displayed) | OPEN — surface licence attribution + DMI disclaimer in-product meanwhile. |
+| 3 | **GST treatment of a data subscription.** Is a price-data subscription a taxable supply of service, at what rate, and does it change the ₹99–pricing maths? | Part 8 | Before first paid sale (M3) | OPEN — needs the founder's accountant. |
+| 4 | **Customer/persona (R2).** Blueprint targets Delhi mandi traders; evidence ranks them last on WTP and HoReCa first; M3 ships a WhatsApp digest (trader-shaped). Who is the paying customer M3 designs for? | UNDERSTANDING.md §3.2 | M3 | OPEN — will ask with options at M3; M3 core built persona-neutral. |
+| 5 | **Trader-invoice source (M5 ground truth).** The ground-truth study needs real trader invoices as the reference, which requires trader/HoReCa relationships. Where do invoices come from, and how many? | UNDERSTANDING.md §2 | M5 | OPEN — non-code dependency on the founder. |
+| 6 | **Gate 1 — YouTube legal opinion.** Written counsel pending on whether extracting factual price statements from transcripts for internal analysis is defensible under s.52 fair dealing. Blocks M6 and the video-dependent risk verdicts (R3/R6/R8). | Gate 1 | M6 | OPEN as of 2026-09-10 — no YouTube code until it arrives and its conclusion is stated. |
+| 7 | **Data-residency of external processors.** WhatsApp Business API (Meta) and any cloud ASR/LLM/embedding provider may process data outside India, against the "residency preferred" constraint. Decide per-integration. | ADR 0001 | per integration (M3/M7) | OPEN. |
+| 8 | **M5 ordering.** M5 (ground-truth on video quotes) is sequenced before M6 (the pipeline that produces them). Confirm the proposed split: M5(a) Agmarknet-vs-invoice needs no video; M5(b) video-vs-invoice uses a small hand-extracted sample. | UNDERSTANDING.md §3.4 | M5 | OPEN — proposed resolution awaiting founder nod. |
