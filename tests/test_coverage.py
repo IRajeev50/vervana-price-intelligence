@@ -98,6 +98,14 @@ def test_implausible_value_counted(seeded: Session):
     assert report.implausible_values == 2
 
 
+def test_no_data_verdict(seeded: Session):
+    # Empty market (the real 2026-09-10 Delhi case): honest "NO DATA", never a fake gap.
+    az, _, _ = _ids(seeded)
+    report = compute_coverage(seeded, market_id=az, start=START, end=END)
+    assert report.tracked_commodities == 0
+    assert "NO DATA" in r5_verdict(report, is_live=True)
+
+
 def test_format_report_renders(seeded: Session):
     az, potato, _ = _ids(seeded)
     _add(seeded, commodity_id=potato, market_id=az, day=START)

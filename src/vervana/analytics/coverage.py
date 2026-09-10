@@ -70,8 +70,11 @@ def compute_coverage(
     # is bad enough to beat. It is UNMEASURED; the documented failure is Assam, not Delhi.
     # This report measures it. If same-day coverage exceeds 90% of commodity-days, the
     # coverage advantage does not exist and only intraday timing remains — say so plainly.
-    # Evidence: docs/RISK_REGISTER.md#r5-coverage-edge; UNDERSTANDING.md §2
-    # Verdict: PENDING (awaiting a run against LIVE Delhi data; fixture runs are not the verdict)
+    # Evidence: docs/RISK_REGISTER.md#r5-coverage-edge; UNDERSTANDING.md §2; M2-done.md
+    # Verdict: PENDING — PRELIMINARY LIVE 2026-09-10 09:30 IST: the national daily snapshot
+    # held 6043 rows but ZERO for Delhi (92% Tamil Nadu); Azadpur/Keshopur absent. One
+    # snapshot at one time of day is NOT the verdict (Delhi may report later in the day, or
+    # under-report). Needs multi-day capture before concluding. See M2-done.md.
     market = session.get(Market, market_id)
     market_name = market.canonical_name if market else f"market#{market_id}"
     n_days = (end - start).days + 1
@@ -140,6 +143,14 @@ def compute_coverage(
 def r5_verdict(report: CoverageReport, *, is_live: bool) -> str:
     """The R5 verdict string. Only a LIVE run produces a real verdict."""
     prefix = "" if is_live else "[FIXTURE DATA — NOT THE REAL VERDICT] "
+    if report.tracked_commodities == 0:
+        return (
+            f"{prefix}NO DATA: Agmarknet returned zero rows for this market in the window. "
+            f"Coverage cannot be computed. If this holds across repeated daily captures it is "
+            f"itself the strongest possible coverage signal — Agmarknet does not carry this "
+            f"market same-day — but a single empty snapshot may just be a time-of-day effect; "
+            f"capture daily over the full window before concluding."
+        )
     if report.same_day_coverage_pct > SAME_DAY_EDGE_THRESHOLD:
         return (
             f"{prefix}NO COVERAGE EDGE: same-day coverage "

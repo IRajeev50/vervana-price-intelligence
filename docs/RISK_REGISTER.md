@@ -12,7 +12,7 @@
 | `R2-BEACHHEAD` | Delhi mandi traders are the first customers. | 0 | — not yet reached in code — |
 | `R3-VIDEO-PROVENANCE` | Video-quoted ranges are near-executed "aadat" prices comparable to trades. | 0 | — not yet reached in code — |
 | `R4-WEAK-GROUND-TRUTH` | Agmarknet validates video quotes. | 1 | PENDING |
-| `R5-COVERAGE-EDGE` | Agmarknet's Delhi coverage is bad enough that we beat it. | 1 | PENDING (awaiting a run against LIVE Delhi data; fixture runs are not the verdict) |
+| `R5-COVERAGE-EDGE` | Agmarknet's Delhi coverage is bad enough that we beat it. | 1 | PENDING — PRELIMINARY LIVE 2026-09-10 09:30 IST: the national daily snapshot |
 | `R6-MOAT-MODEL-GAP` | The video corpus is the defensibility AND the model trains on Agmarknet history. | 0 | — not yet reached in code — |
 | `R7-FORECAST-BAR` | Gradient boosting beats naive baselines on next-day F&V prices. | 0 | — not yet reached in code — |
 | `R8-YOUTUBE-TOS` | The corpus is both a legal risk and a defensible asset. | 0 | — not yet reached in code — |
@@ -27,7 +27,7 @@
 | ID | Location | Summary | Verdict |
 |---|---|---|---|
 | `R4-WEAK-GROUND-TRUTH` | `src/vervana/connectors/agmarknet.py:228` | We record Agmarknet as `executed_summary` — a | PENDING |
-| `R5-COVERAGE-EDGE` | `src/vervana/analytics/coverage.py:69` | The entire product edge assumes Agmarknet's Delhi coverage | PENDING (awaiting a run against LIVE Delhi data; fixture runs are not the verdict) |
+| `R5-COVERAGE-EDGE` | `src/vervana/analytics/coverage.py:69` | The entire product edge assumes Agmarknet's Delhi coverage | PENDING — PRELIMINARY LIVE 2026-09-10 09:30 IST: the national daily snapshot |
 | `R9-NOT-IP` | `src/vervana/models/entities.py:26` | This registry is treated as proprietary IP. Under Eastern Book | PENDING |
 
 ## 3. Evidence against each assumption

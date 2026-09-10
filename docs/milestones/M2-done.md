@@ -80,6 +80,47 @@ OPEN_QUESTIONS #9, not a bug. The coverage verdict is deliberately un-claimable 
 ₹0 fixed. `httpx` is light; the Agmarknet API is free (GODL-India). Raw payloads archived to
 local disk.
 
+## FIRST LIVE RUN — 2026-09-10 (with the founder's data.gov.in key)
+
+The key arrived and I ran the connector against the live API. **This surfaced a real,
+thesis-relevant finding, reported here straight per the standing instruction.**
+
+- The live schema **confirmed the parser**: record keys are lowercase (`state`,
+  `market`, `commodity`, `arrival_date`, `min_price`, `max_price`, `modal_price`), prices
+  are integers in ₹/quintal — exactly what the connector maps.
+- **Delhi is absent from the current daily snapshot.** At the `updated_date` of
+  **2026-09-10 09:30 IST**, the national snapshot held **6,043 rows** — and **0 for Delhi**
+  under either `Delhi` or `NCT of Delhi` (the API's own filter returns total=0). The
+  snapshot was **92% Tamil Nadu** (5,584 rows); Azadpur and Keshopur do not appear.
+- Ingesting all 6,043 rows against the Delhi-scoped registry: **0 accepted, 6,043
+  rejected** — all `unresolved_market` (non-Delhi) or `unresolved_commodity`. This both
+  proves the pipeline on real data and exposes Agmarknet's real vocabulary
+  (`Cucumbar(Kheera)`, `Raddish`, `Bajra(Pearl Millet/Cumbu)`, `Ashgourd`, `Paddy(Common)`)
+  — the alias-backlog work of OPEN_QUESTIONS #9.
+- `coverage report --market Azadpur --live` → **NO DATA** verdict (the code refuses to
+  fake a coverage gap from an empty set).
+
+**What this means — carefully, not overclaimed.** This is **one snapshot at one time of
+day**, not the R5 verdict. Two readings are live and I can't yet separate them:
+1. **Timing (supports an intraday edge):** Delhi mandis may upload later in the day, so a
+   09:30 IST snapshot legitimately lacks them. If so, a Delhi buyer gets **no same-day Delhi
+   price from Agmarknet in the morning** — which is exactly the intraday-timing gap the
+   product could exploit.
+2. **Sourcing problem (hurts the plan):** if Agmarknet's daily resource structurally
+   under-carries Delhi, then **we cannot source Delhi prices from Agmarknet either** — the
+   Delhi price product would depend on observers/eNAM/quick-commerce, not this feed.
+
+**Both cannot be resolved from one pull.** The correct measurement is the connector's
+daily-capture-builds-history design: run the snapshot on a cron for several days/weeks and
+measure when (and whether) Delhi appears and at what lag. R5 stays **PENDING** with this
+preliminary result recorded in the code tag.
+
+**Environment note:** in this sandboxed shell Python's `httpx` sockets are blocked while
+`curl` is allowed, so the live pull was done via `curl` + `ingest agmarknet-file` (which
+exercises the full parse/validate/emit path on real data). `httpx` is the right client and
+will work on the deploy VPS; this is a sandbox limitation, not a code defect. Recorded in
+RUNBOOK.
+
 ## Next
 Either (a) **the API key** so I run the real coverage study and record the true R5 verdict, or
 (b) **M3 — serving layer** (API + dashboard + WhatsApp digest with provenance), which can be
