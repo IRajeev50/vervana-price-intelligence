@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Intelligence{% endblock %}
+{% block body %}
+<h1>Agricultural intelligence</h1>
+<p class="sub">Upstream crop signals (rain, NDVI, reservoirs, acreage, arrivals, stocks, policy) joined into a supply -> price -> impact chain. Every input is labelled observed, simulated or missing; a simulated input caps confidence. The horizon is what the crop's biology supports, never more.</p>
+
+<table>
+  <thead><tr><th>Commodity</th><th>Honest horizon</th><th>Why (crop cycle + storage)</th><th></th></tr></thead>
+  <tbody>
+  {% for h in horizons %}
+    <tr>
+      <td><strong>{{ h.commodity }}</strong></td>
+      <td>{{ h.label }}</td>
+      <td style="color:var(--muted)">{{ h.basis }}</td>
+      <td><a class="link" href="/intelligence/{{ h.commodity }}">Outlook</a></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+<p class="sub" style="margin-top:12px">CLI: <code>vervana intelligence horizons</code> · <code>vervana intelligence outlook Sugarcane</code>. Not trading advice.</p>
+{% endblock %}

@@ -1,0 +1,11 @@
+signal_type,region,on_date,value_numeric,value_text,source,source_url,note
+rainfall_deficit_pct,Maharashtra cane belt,2026-09-01,-12,,simulated_fixture,,"SIMULATED - illustrative of 2026 monsoon deficit reported in research; connect IMD feed before real use"
+rainfall_deficit_pct,Karnataka,2026-09-01,-23,,simulated_fixture,,"SIMULATED - illustrative; connect IMD feed before real use"
+rainfall_deficit_pct,Solapur,2026-09-01,-47,,simulated_fixture,,"SIMULATED - illustrative district-level deficit; connect IMD feed before real use"
+ndvi_anomaly,Maharashtra cane belt,2026-09-01,-0.07,,simulated_fixture,,"SIMULATED - illustrative vegetation stress; connect Sentinel-2/MNCFC pipeline before real use"
+acreage_change_pct,India,2026-08-15,-2,,simulated_fixture,,"SIMULATED - illustrative 2026-27 cane acreage change; connect ISMA/govt sowing feed"
+reservoir_pct,Maharashtra,2026-09-01,58,,simulated_fixture,,"SIMULATED - illustrative reservoir storage; connect CWC feed"
+production_lmt,India,2026-09-01,279,,simulated_fixture,,"SIMULATED - illustrative of ISMA 2025-26 estimate; connect association feed"
+consumption_lmt,India,2026-09-01,282,,simulated_fixture,,"SIMULATED - illustrative mid of 280-285 LMT range; connect association feed"
+stocks_lmt,India,2026-09-01,35,,simulated_fixture,,"SIMULATED - illustrative closing stocks; connect association feed"
+policy_event,India,2026-09-01,,10 LMT duty-free raw sugar import window open,simulated_fixture,,"SIMULATED - illustrative of reported import window; connect DGFT/PIB feed"

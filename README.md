@@ -76,6 +76,7 @@ make down               # stop them
 - [`docs/RISK_REGISTER.md`](docs/RISK_REGISTER.md) — the assumptions the product rests on, and their status (generated, never hand-edited).
 - [`docs/RUNNING_COSTS.md`](docs/RUNNING_COSTS.md) — what it costs to run, kept honest.
 - [`docs/OPEN_QUESTIONS.md`](docs/OPEN_QUESTIONS.md) — things not yet settled.
+- [`docs/INTELLIGENCE.md`](docs/INTELLIGENCE.md) — the M9 upstream-signal intelligence layer: reasoning chain, honesty rules, honest horizons, sugar worked example.
 - [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — what to do when something breaks.
 
 ## Licensing & attribution (applies once Agmarknet data is displayed)

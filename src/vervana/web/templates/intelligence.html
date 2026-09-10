@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}{{ report.commodity }} outlook{% endblock %}
+{% block body %}
+<h1>{{ report.commodity }} - signal-to-impact outlook</h1>
+<p class="sub">Made {{ report.made_at_utc }} (UTC) · honest horizon <strong>{{ report.horizon.label }}</strong> · {{ report.n_observed }} observed, {{ report.n_simulated }} simulated, {{ report.n_missing }} missing inputs</p>
+
+<div class="verdict" style="border-left-color:{{ '#1f7a3d' if report.verdict == 'signal (observed)' else '#b26a00' }}">
+  <strong>Verdict: {{ report.verdict }}</strong> (confidence {{ '%.2f'|format(report.confidence) }})<br>
+  <span style="color:var(--muted)">{{ report.verdict_reason }}</span><br>
+  <span style="color:var(--muted)">Horizon basis: {{ report.horizon.basis }}</span>
+</div>
+
+{% if report.price_context.latest_canonical_rupees is not none %}
+<div class="verdict">
+  <strong>Price context:</strong> latest {{ report.price_context.latest_class }}
+  Rs {{ '%.2f'|format(report.price_context.latest_canonical_rupees) }}/kg -
+  <a class="link" href="/evidence/{{ report.price_context.latest_obs_id }}">evidence #{{ report.price_context.latest_obs_id }}</a>
+  ({{ report.price_context.observations }} observation(s) on record).
+</div>
+{% endif %}
+
+<h1 style="margin-top:20px">Reasoning chain</h1>
+<table>
+  <thead><tr><th>Step</th><th>Finding</th><th>Direction</th><th>Evidence</th><th>Confidence</th></tr></thead>
+  <tbody>
+  {% for s in report.steps %}
+    <tr>
+      <td><strong>{{ s.name }}</strong></td>
+      <td>{{ s.finding }}{% if s.missing %}<br><span style="color:#b26a00">missing: {{ s.missing|join(', ') }}</span>{% endif %}</td>
+      <td>{{ s.direction.value }}</td>
+      <td><span class="pill {{ 'executed_summary' if s.status == 'observed' else ('quote_indicative' if s.status == 'simulated' else 'retail_offer') }}">{{ s.status }}</span></td>
+      <td>{{ '%.2f'|format(s.confidence) }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h1 style="margin-top:20px">Input signals</h1>
+<table>
+  <thead><tr><th>Signal</th><th>Region</th><th>Value</th><th>Status</th><th>Source</th></tr></thead>
+  <tbody>
+  {% for s in report.signals %}
+    <tr>
+      <td>{{ s.kind }}</td>
+      <td>{{ s.region }}</td>
+      <td>{{ s.value_numeric if s.value_numeric is not none else (s.value_text or '-') }}</td>
+      <td><span class="pill {{ 'executed_summary' if s.status.value == 'observed' else ('quote_indicative' if s.status.value == 'simulated' else 'retail_offer') }}">{{ s.status.value }}</span></td>
+      <td style="color:var(--muted)">{{ s.source }}{% if s.note %}<br>{{ s.note }}{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+<p class="sub" style="margin-top:12px">Simulated rows exist so the chain can be exercised before live feeds are connected; they are never presented as live data and they cap confidence at 0.35. Not trading advice. Political/policy effects are reported only as observed interventions and a policy-pressure index - the platform never predicts election outcomes or partisan effects.</p>
+{% endblock %}

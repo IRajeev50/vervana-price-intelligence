@@ -1,0 +1,10 @@
+commodity,cycle_months_min,cycle_months_max,storage_buffer_weeks,horizon_days_min,horizon_days_max,primary_regions,horizon_note
+Sugarcane,10,18,12,180,240,Maharashtra;Uttar Pradesh;Karnataka,"10-18 month crop decided by the Jun-Sep monsoon; acreage, NDVI, reservoirs and mill recovery give 6-8 months of honest lead time"
+Wheat,4,6,16,90,150,Punjab;Haryana;Madhya Pradesh,Rabi crop; government buffer stocks extend the honest horizon
+Rice,4,6,16,90,150,Punjab;West Bengal;Uttar Pradesh,Kharif crop; buffer stocks extend the honest horizon
+Onion,3,4,20,60,90,Maharashtra;Karnataka;Madhya Pradesh,Stored rabi onion buffers shocks for months; cold-storage and release policy matter
+Potato,3,4,16,60,90,Uttar Pradesh;West Bengal;Bihar,Cold-storage occupancy is a leading supply signal
+Tomato,1,2,0,28,56,Maharashtra;Karnataka;Himachal Pradesh,"Perishable; honest horizon is weeks, not months"
+Capsicum,1,2,0,28,56,Karnataka;Maharashtra;Himachal Pradesh,"Perishable; honest horizon is weeks, not months"
+Cauliflower,1,2,0,28,56,Himachal Pradesh;Uttar Pradesh;Bihar,"Perishable; honest horizon is weeks, not months"
+Green Chilli,1,2,0,28,56,Andhra Pradesh;Karnataka;Maharashtra,"Perishable; honest horizon is weeks, not months"

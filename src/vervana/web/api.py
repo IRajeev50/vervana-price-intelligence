@@ -211,3 +211,13 @@ def export(commodity: str = "", market: str = "", _key: str = Depends(require_ap
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=vervana_export.csv"},
     )
+
+@router.get("/intelligence/{commodity}")
+def intelligence(commodity: str, _key: str = Depends(require_api_key)):
+    """Signal-to-impact outlook for a commodity (M9). Inputs carry observed /
+    simulated / missing labels; simulated inputs cap confidence. Not advice."""
+    from vervana.intelligence import build_report
+
+    with session_scope() as s:
+        report = build_report(s, commodity)
+    return report.to_dict()

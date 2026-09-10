@@ -519,6 +519,80 @@ def groundtruth_report() -> None:
         typer.echo(format_report(run_study(session)))
 
 
+
+
+# ---------------------------------------------------------------------------
+# intelligence (M9)
+# ---------------------------------------------------------------------------
+intelligence_app = typer.Typer(
+    help="Upstream-signal intelligence (horizons, signal-to-impact outlooks).",
+    no_args_is_help=True,
+)
+app.add_typer(intelligence_app, name="intelligence")
+
+
+@intelligence_app.command("horizons")
+def intelligence_horizons() -> None:
+    """Show the honest forecast horizon for every profiled commodity."""
+    from vervana.intelligence.crops import forecast_horizon, load_profiles
+
+    for profile in load_profiles().values():
+        h = forecast_horizon(profile)
+        typer.echo(f"{h.commodity:<14} {h.label:<12} {h.basis}")
+
+
+@intelligence_app.command("outlook")
+def intelligence_outlook(
+    commodity: str,
+    save: bool = typer.Option(False, help="Persist the report (append-only audit log)."),
+    observed_only: bool = typer.Option(
+        False, help="Exclude simulated fixture inputs (shows what live feeds alone can say)."
+    ),
+) -> None:
+    """Build the signal-to-impact outlook for a commodity (e.g. Sugarcane)."""
+    from vervana.db.engine import session_scope
+    from vervana.intelligence import build_report, format_report, save_record
+
+    with session_scope() as session:
+        report = build_report(session, commodity, include_simulated=not observed_only)
+        typer.echo(format_report(report))
+        if save:
+            rec_id = save_record(session, report)
+            typer.echo(f"\nstored as intelligence_report#{rec_id} (append-only)")
+
+
+signals_app = typer.Typer(help="Upstream signal feeds.", no_args_is_help=True)
+intelligence_app.add_typer(signals_app, name="signals")
+
+
+@signals_app.command("import-csv")
+def signals_import_csv(path: Path) -> None:
+    """Import OBSERVED upstream signals (source required) into the context store."""
+    from vervana.db.engine import session_scope
+    from vervana.intelligence.signals import import_signals_csv
+
+    with session_scope() as session:
+        res = import_signals_csv(session, path)
+    typer.echo(f"added={res['added']} rejected={res['rejected']}")
+    for reason, count in sorted(res["reasons"].items(), key=lambda kv: -kv[1]):
+        typer.echo(f"  rejected [{count}]: {reason}")
+
+
+@signals_app.command("list")
+def signals_list() -> None:
+    """List the observed upstream signals currently in the context store."""
+    from vervana.db.engine import session_scope
+    from vervana.intelligence.signals import collect_signals
+
+    with session_scope() as session:
+        sigs = collect_signals(session)
+    if not sigs:
+        typer.echo("(no observed upstream signals - import with signals import-csv)")
+        return
+    for s in sigs:
+        typer.echo(s.describe())
+
+
 @app.command()
 def digest(commodities: str = "") -> None:
     """Print the HoReCa procurement digest (wholesale vs quick-commerce retail spread)."""

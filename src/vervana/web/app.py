@@ -276,6 +276,25 @@ def forecast_page(request: Request):
     )
 
 
+@app.get("/intelligence", response_class=HTMLResponse)
+def intelligence_index(request: Request):
+    from vervana.intelligence.crops import forecast_horizon, load_profiles
+
+    horizons = [forecast_horizon(p) for p in load_profiles().values()]
+    return TEMPLATES.TemplateResponse(
+        request, "intelligence_index.html", _ctx(request, horizons=horizons)
+    )
+
+
+@app.get("/intelligence/{commodity}", response_class=HTMLResponse)
+def intelligence_detail(request: Request, commodity: str):
+    from vervana.intelligence import build_report
+
+    with session_scope() as s:
+        report = build_report(s, commodity)
+    return TEMPLATES.TemplateResponse(request, "intelligence.html", _ctx(request, report=report))
+
+
 @app.get("/review", response_class=HTMLResponse)
 def review_list(request: Request):
     with session_scope() as s:
