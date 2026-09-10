@@ -25,6 +25,7 @@ dependencies = [
     "statsmodels>=0.15.0",
     "numpy>=2.5.3",
     "pandas>=3.0.5",
+    "numbers-parser>=4.19.0",
 ]
 
 [project.scripts]

@@ -2,20 +2,20 @@
 
 > **Generated file — do not hand-edit.** Produced by `scripts/gen_risk_register.py` (run via `make risks`) from `scripts/risks_seed.yaml` (definitions) and a grep of the codebase for `RISK[<ID>]:` tags (live occurrences). Edit the seed or the code, then regenerate.
 
-**Summary:** 13 risks declared · 10 have live code tags · 3 not yet reached in code · 10 tag occurrences total.
+**Summary:** 13 risks declared · 13 have live code tags · 0 not yet reached in code · 13 tag occurrences total.
 
 ## 1. Declared risks (definitions)
 
 | ID | Assumption | Code tags | Verdict(s) |
 |---|---|---|---|
-| `R1-INFO-CHANGES-BEHAVIOUR` | Giving people better price data changes their decisions. | 0 | — not yet reached in code — |
+| `R1-INFO-CHANGES-BEHAVIOUR` | Giving people better price data changes their decisions. | 1 | PENDING |
 | `R2-BEACHHEAD` | Delhi mandi traders are the first customers. | 1 | RESOLVED — persona set to HoReCa + quick-commerce (2026-09-10, founder). |
-| `R3-VIDEO-PROVENANCE` | Video-quoted ranges are near-executed "aadat" prices comparable to trades. | 0 | — not yet reached in code — |
+| `R3-VIDEO-PROVENANCE` | Video-quoted ranges are near-executed "aadat" prices comparable to trades. | 1 | PENDING |
 | `R4-WEAK-GROUND-TRUTH` | Agmarknet validates video quotes. | 1 | PENDING |
 | `R5-COVERAGE-EDGE` | Agmarknet's Delhi coverage is bad enough that we beat it. | 1 | PENDING — PRELIMINARY LIVE 2026-09-10 09:30 IST: the national daily snapshot |
 | `R6-MOAT-MODEL-GAP` | The video corpus is the defensibility AND the model trains on Agmarknet history. | 1 | PENDING — video-feature contribution = 0% (no video features exist yet) |
 | `R7-FORECAST-BAR` | Gradient boosting beats naive baselines on next-day F&V prices. | 1 | PENDING (no real multi-day history captured yet; see M4-done) |
-| `R8-YOUTUBE-TOS` | The corpus is both a legal risk and a defensible asset. | 0 | — not yet reached in code — |
+| `R8-YOUTUBE-TOS` | The corpus is both a legal risk and a defensible asset. | 1 | PENDING — legal opinion not yet confirmed; treated as manual import only. |
 | `R9-NOT-IP` | The dataset is proprietary IP. | 1 | PENDING |
 | `R10-QCOMM-SOURCING` | Buying quick-commerce feeds from data vendors is compliant. | 1 | PENDING |
 | `R11-RECORDER-CONFLICT` | Commission agents can be paid to report prices reliably. | 1 | PENDING |
@@ -26,15 +26,18 @@
 
 | ID | Location | Summary | Verdict |
 |---|---|---|---|
+| `R1-INFO-CHANGES-BEHAVIOUR` | `src/vervana/digest.py:106` | This digest assumes that showing a buyer the | PENDING |
 | `R10-QCOMM-SOURCING` | `src/vervana/connectors/quickcommerce.py:51` | A "vendor feed" of quick-commerce prices is not a | PENDING |
 | `R11-RECORDER-CONFLICT` | `src/vervana/models/observer.py:23` | A paid recorder who holds positions in the commodities | PENDING |
 | `R12-RECORDER-ECONOMICS` | `src/vervana/economics.py:44` | The platform is assumed to scale like software, but | PENDING |
 | `R13-RANGE-MIDPOINT` | `src/vervana/forecast/series.py:26` | The modelled series uses `canonical_price_paise_per_kg`, | PENDING |
 | `R2-BEACHHEAD` | `src/vervana/digest.py:28` | This digest is deliberately shaped for HoReCa buyers, not mandi | RESOLVED — persona set to HoReCa + quick-commerce (2026-09-10, founder). |
+| `R3-VIDEO-PROVENANCE` | `src/vervana/connectors/transcript.py:98` | These are YouTube-quoted ranges treated as prices. | PENDING |
 | `R4-WEAK-GROUND-TRUTH` | `src/vervana/connectors/agmarknet.py:228` | We record Agmarknet as `executed_summary` — a | PENDING |
 | `R5-COVERAGE-EDGE` | `src/vervana/analytics/coverage.py:69` | The entire product edge assumes Agmarknet's Delhi coverage | PENDING — PRELIMINARY LIVE 2026-09-10 09:30 IST: the national daily snapshot |
 | `R6-MOAT-MODEL-GAP` | `src/vervana/forecast/models.py:64` | The corpus is pitched as the moat, yet the model trains on | PENDING — video-feature contribution = 0% (no video features exist yet) |
 | `R7-FORECAST-BAR` | `src/vervana/forecast/models.py:56` | This assumes gradient boosting can beat the naive baselines on | PENDING (no real multi-day history captured yet; see M4-done) |
+| `R8-YOUTUBE-TOS` | `src/vervana/connectors/transcript.py:58` | This corpus is YouTube-derived. It cannot be both a legal | PENDING — legal opinion not yet confirmed; treated as manual import only. |
 | `R9-NOT-IP` | `src/vervana/models/entities.py:26` | This registry is treated as proprietary IP. Under Eastern Book | PENDING |
 
 ## 3. Evidence against each assumption

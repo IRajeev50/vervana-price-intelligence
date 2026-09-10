@@ -59,3 +59,29 @@ class Connector(ABC):
     @abstractmethod
     def ingest(self, session: Session, records: list[dict], *, mode: str) -> IngestResult:
         """Normalise, validate, and emit rows from already-fetched raw records."""
+
+    def ingest_with_run(
+        self, session: Session, records: list[dict], *, mode: str, raw_payload_path=None
+    ):
+        """Ingest already-fetched records AND record an ingest_run (audit trail)."""
+        from vervana.models.ingest import IngestRun
+        from vervana.time import now_utc
+
+        run = IngestRun(
+            connector=self.name,
+            mode=mode,
+            status="running",
+            started_at=now_utc(),
+            raw_payload_path=str(raw_payload_path) if raw_payload_path else None,
+        )
+        session.add(run)
+        session.flush()
+        result = self.ingest(session, records, mode=mode)
+        run.rows_in = result.rows_in
+        run.accepted = result.accepted
+        run.rejected = result.rejected
+        run.rejection_reasons = result.reason_counts
+        run.status = "ok"
+        run.finished_at = now_utc()
+        session.flush()
+        return run, result

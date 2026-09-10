@@ -103,6 +103,14 @@ def _rupees(paise: int | None) -> str:
 
 
 def build_digest(session: Session, commodities: list[str] | None = None) -> str:
+    # RISK[R1-INFO-CHANGES-BEHAVIOUR]: This digest assumes that showing a buyer the
+    # wholesale-vs-retail spread will change their procurement decisions. A 72-village RCT
+    # (Mitra, Mookherjee, Torero & Visaria 2017) found daily price info did NOT move
+    # farmer outcomes. That was farmers selling; our buyer is a HoReCa procurement buyer,
+    # a different (plausibly more elastic) decision — but the info→action link is still an
+    # ASSUMPTION, not a proven fact. Validate with actual buyer behaviour before pricing on
+    # it. Evidence: docs/RISK_REGISTER.md#r1-info-changes-behaviour
+    # Verdict: PENDING
     lines = build_lines(session, commodities)
     today = to_ist(now_utc()).strftime("%d %b %Y")
     out = [f"*Vervana — HoReCa procurement digest*  ({today})", ""]

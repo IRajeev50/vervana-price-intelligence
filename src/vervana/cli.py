@@ -342,6 +342,28 @@ def ingest_context_csv(path: Path) -> None:
     typer.echo(f"in={result.rows_in} accepted={result.accepted} rejected={result.rejected}")
 
 
+@ingest_app.command("transcript-csv")
+def ingest_transcript_csv(path: Path) -> None:
+    """Import the human-curated video-quote corpus (M6; quote_indicative, R3/R8)."""
+    import csv as _csv
+
+    from vervana.connectors.transcript import TranscriptConnector
+    from vervana.db.engine import session_scope
+
+    with Path(path).open(encoding="utf-8") as fh:
+        records = list(_csv.DictReader(fh))
+    with session_scope() as session:
+        run, result = TranscriptConnector().ingest_with_run(
+            session, records, mode="transcript", raw_payload_path=str(path)
+        )
+    typer.echo(
+        f"ingest_run#{run.id}: in={result.rows_in} accepted={result.accepted} "
+        f"rejected={result.rejected}"
+    )
+    for reason, count in sorted(result.reason_counts.items(), key=lambda kv: -kv[1])[:8]:
+        typer.echo(f"  rejected [{count}]: {reason}")
+
+
 @ingest_app.command("enam")
 def ingest_enam() -> None:
     """eNAM connector (stub — no open API yet; see OPEN_QUESTIONS #1)."""
@@ -380,6 +402,36 @@ def forecast_demo(kind: str = "randomwalk") -> None:
     summary = summarize_and_persist(results)
     typer.echo(f"\nmodel_shippable: {summary['model_shippable']}")
     typer.echo(summary["kill_reason"])
+
+
+@forecast_app.command("backtest")
+def forecast_backtest(commodity: str, market: str = "Azadpur", source: str = "quote") -> None:
+    """Real walk-forward backtest for a commodity+market series from the DB."""
+    from sqlalchemy import select
+
+    from vervana.db.engine import session_scope
+    from vervana.forecast import backtest_all, format_backtest, summarize_and_persist
+    from vervana.forecast.series import price_series, quote_midpoint_series
+    from vervana.models.entities import Commodity, Market
+
+    with session_scope() as session:
+        c = session.scalar(select(Commodity).where(Commodity.canonical_name == commodity))
+        m = session.scalar(select(Market).where(Market.canonical_name == market))
+        if not c or not m:
+            typer.echo("unknown commodity/market", err=True)
+            raise typer.Exit(1)
+        if source == "quote":
+            series = quote_midpoint_series(session, commodity_id=c.id, market_id=m.id)
+        else:
+            series = price_series(session, commodity_id=c.id, market_id=m.id)
+        typer.echo(f"{commodity} @ {market} ({source}): {len(series)} daily points")
+        if len(series) <= 21:
+            typer.echo("not enough history yet (need > 21 days).")
+            raise typer.Exit(0)
+        results = backtest_all(series, min_train=21)
+        typer.echo(format_backtest(results))
+        summary = summarize_and_persist(results)
+        typer.echo(f"\nmodel_shippable: {summary['model_shippable']}\n{summary['kill_reason']}")
 
 
 @forecast_app.command("status")

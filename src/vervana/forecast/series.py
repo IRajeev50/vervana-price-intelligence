@@ -51,3 +51,34 @@ def price_series(
         day = to_ist(r.observed_at).date().isoformat()
         by_day[day] = r.canonical_price_paise_per_kg  # later row on same day wins
     return np.array([by_day[d] for d in sorted(by_day)], dtype=float)
+
+
+def quote_midpoint_series(
+    session: Session, *, commodity_id: int, market_id: int
+) -> np.ndarray:
+    """Daily series from quote_indicative *range midpoints* (paise), oldest→newest.
+
+    Video quotes usually have no stated unit, so canonical ₹/kg is NULL; for modelling we
+    use the range midpoint in the quoted (unstated) unit. This is exactly the R13 midpoint
+    assumption — the series is only comparable within itself, not to executed ₹/kg.
+    """
+    rows = list(
+        session.scalars(
+            select(PriceObservation)
+            .where(
+                PriceObservation.commodity_id == commodity_id,
+                PriceObservation.market_id == market_id,
+                PriceObservation.source_class == SourceClass.quote_indicative,
+            )
+            .order_by(PriceObservation.observed_at)
+        )
+    )
+    by_day: dict[str, float] = {}
+    counts: dict[str, int] = {}
+    for r in rows:
+        day = to_ist(r.observed_at).date().isoformat()
+        mid = (r.price_low_paise + r.price_high_paise) / 2
+        # average multiple quotes on the same day (same source class — guard-safe)
+        by_day[day] = by_day.get(day, 0.0) + mid
+        counts[day] = counts.get(day, 0) + 1
+    return np.array([by_day[d] / counts[d] for d in sorted(by_day)], dtype=float)

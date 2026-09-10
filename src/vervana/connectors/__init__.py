@@ -6,6 +6,7 @@ from vervana.connectors.context import ContextConnector
 from vervana.connectors.enam import EnamConnector
 from vervana.connectors.observer import ObserverConnector
 from vervana.connectors.quickcommerce import QuickCommerceConnector
+from vervana.connectors.transcript import TranscriptConnector
 
 __all__ = [
     "AgmarknetConnector",
@@ -15,4 +16,5 @@ __all__ = [
     "IngestResult",
     "ObserverConnector",
     "QuickCommerceConnector",
+    "TranscriptConnector",
 ]
