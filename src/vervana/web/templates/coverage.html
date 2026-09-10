@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Coverage (R5){% endblock %}
+{% block body %}
+<h1>Coverage study — R5</h1>
+<p class="sub">The experiment that decides whether the product has an edge: does Agmarknet report Delhi mandis, same-day?</p>
+
+{% for r in reports %}
+<div class="verdict">
+  <strong>{{ r.market }}</strong> — coverage {{ r.coverage }}, same-day {{ r.same_day }},
+  {{ r.tracked }} commodities tracked.<br>
+  <span style="color:var(--muted)">{{ r.verdict }}</span>
+</div>
+{% else %}
+<div class="verdict">No Delhi markets found in the registry.</div>
+{% endfor %}
+
+<h1 style="margin-top:26px; font-size:16px">Daily Delhi probe</h1>
+<p class="sub">Captured 3×/day. <code>delhi_rows</code> counts Delhi rows in the national snapshot, independent of alias resolution — the real signal.</p>
+<table>
+  <thead><tr><th>Captured (UTC)</th><th>Total rows</th><th>Delhi rows</th><th>Delhi markets</th></tr></thead>
+  <tbody>
+  {% for p in probe|reverse %}
+    <tr><td>{{ p.captured_at_utc }}</td><td>{{ "{:,}".format(p.total_rows) }}</td>
+        <td><strong>{{ p.delhi_rows }}</strong></td><td>{{ p.delhi_markets or "—" }}</td></tr>
+  {% else %}
+    <tr><td colspan="4" style="color:var(--muted)">No probe data yet — the daily capture will fill this.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

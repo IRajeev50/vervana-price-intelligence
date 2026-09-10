@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Ingest history{% endblock %}
+{% block body %}
+<h1>Ingest history</h1>
+<p class="sub">Every capture is logged — even one that returns zero Delhi rows. This is the audit trail behind the coverage study.</p>
+
+<table>
+  <thead><tr><th>#</th><th>When (IST)</th><th>Mode</th><th>Status</th><th>Rows in</th><th>Accepted</th><th>Rejected</th></tr></thead>
+  <tbody>
+  {% for r in runs %}
+    <tr>
+      <td>{{ r.id }}</td><td>{{ r.when }}</td><td>{{ r.mode }}</td>
+      <td><span class="pill {{ 'executed_summary' if r.status=='ok' else 'quote_indicative' }}">{{ r.status }}</span></td>
+      <td>{{ "{:,}".format(r.rows_in) }}</td>
+      <td>{{ "{:,}".format(r.accepted) }}</td>
+      <td>{{ "{:,}".format(r.rejected) }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="7" style="color:var(--muted)">No ingest runs yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+<p class="sub" style="margin-top:12px">Run a capture from the terminal: <code>bash scripts/daily_capture.sh</code></p>
+{% endblock %}

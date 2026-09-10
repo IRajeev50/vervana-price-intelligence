@@ -30,6 +30,28 @@ make risks         # regenerate the risk register from the code
 uv run vervana healthcheck   # prove the app loads and is configured correctly
 ```
 
+### Run the platform (web dashboard + API)
+
+```bash
+uv run vervana db upgrade         # create the database
+uv run vervana registry seed      # load the Delhi F&V starter registry
+uv run vervana serve              # start the web app at http://127.0.0.1:8000
+```
+
+Then open **http://127.0.0.1:8000**. Pages: **Dashboard** (totals + R5 status),
+**Prices** (browse/filter, every row links to its evidence), **Coverage (R5)** (the
+Delhi coverage experiment + daily probe), **Review** (approve alias matches), **Ingest**
+(capture history).
+
+To fill it with live national data (needs your data.gov.in key in `.env`), the daily
+capture runs automatically (see `docs/RUNBOOK.md`), or do it once by hand:
+
+```bash
+bash scripts/daily_capture.sh                                   # pull today's snapshot
+uv run vervana registry bootstrap data/raw/agmarknet/snapshot_*.json   # learn its names
+uv run vervana ingest agmarknet-file data/raw/agmarknet/snapshot_*.json # ingest prices
+```
+
 To run the local database + app together (needs Docker):
 
 ```bash

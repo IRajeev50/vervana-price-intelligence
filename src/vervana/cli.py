@@ -88,6 +88,21 @@ def registry_seed() -> None:
         typer.echo(f"{k:12} {v}")
 
 
+@registry_app.command("bootstrap")
+def registry_bootstrap(path: Path) -> None:
+    """Create commodities/markets from a live Agmarknet snapshot's official names."""
+    import json
+
+    from vervana.db.engine import session_scope
+    from vervana.repository.registry import bootstrap_from_agmarknet_records
+
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    records = payload.get("records", payload) if isinstance(payload, dict) else payload
+    with session_scope() as session:
+        created = bootstrap_from_agmarknet_records(session, records)
+    typer.echo(f"created commodities={created['commodity']} markets={created['market']}")
+
+
 # ---------------------------------------------------------------------------
 # review
 # ---------------------------------------------------------------------------
@@ -269,6 +284,14 @@ def coverage_report(
         start = end - timedelta(days=days - 1)
         report = compute_coverage(session, market_id=m.id, start=start, end=end)
         typer.echo(format_report(report, is_live=live))
+
+
+@app.command()
+def serve(host: str = "127.0.0.1", port: int = 8000) -> None:
+    """Run the Vervana web platform (dashboard + API)."""
+    import uvicorn
+
+    uvicorn.run("vervana.web.app:app", host=host, port=port)
 
 
 if __name__ == "__main__":  # pragma: no cover

@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "vervana-web",
+      "runtimeExecutable": "/Users/rajeevsingh.1/Mandi bhav/.venv/bin/uvicorn",
+      "runtimeArgs": ["vervana.web.app:app", "--host", "127.0.0.1", "--port", "8000"],
+      "port": 8000
+    }
+  ]
+}

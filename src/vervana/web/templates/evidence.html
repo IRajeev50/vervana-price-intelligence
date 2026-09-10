@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Evidence #{{ o.id }}{% endblock %}
+{% block body %}
+<h1>Evidence — observation #{{ o.id }}</h1>
+<p class="sub">{{ o.commodity }} @ {{ o.market }} · every field below is what was recorded, traceable to source.</p>
+
+<dl class="kv">
+  <dt>Commodity</dt><dd>{{ o.commodity }}</dd>
+  <dt>Market</dt><dd>{{ o.market }}</dd>
+  <dt>Source class</dt><dd><span class="pill {{ o.source_class }}">{{ o.source_class }}</span></dd>
+  <dt>Time basis</dt><dd>{{ o.time_basis }}</dd>
+  <dt>Price range</dt><dd>{{ o.low }} – {{ o.high }} <span style="color:var(--muted)">per {{ o.unit_raw }}</span></dd>
+  <dt>Point price</dt><dd>{{ o.point }}</dd>
+  <dt>Canonical ₹/kg</dt><dd><strong>{{ o.canonical }}</strong> (factor: {{ o.kg_equivalent }} kg/unit, conf {{ o.conversion_confidence }})</dd>
+  <dt>Confidence</dt><dd>{{ o.confidence }}</dd>
+  <dt>Observed at (IST)</dt><dd>{{ o.observed_at }}</dd>
+  <dt>Captured at (IST)</dt><dd>{{ o.created_at }}</dd>
+  <dt>Supersedes</dt><dd>{{ o.supersedes_id or "—" }}</dd>
+  <dt>Source URL</dt><dd><a class="link" href="{{ o.source_url }}" target="_blank" rel="noopener">{{ o.source_url }}</a></dd>
+  <dt>Raw source record</dt><dd><code>{{ o.raw_quote }}</code></dd>
+  <dt>JSON (API)</dt><dd><a class="link" href="/api/observations/{{ o.id }}">/api/observations/{{ o.id }}</a></dd>
+</dl>
+<p class="sub" style="margin-top:14px"><a class="link" href="/prices">← back to prices</a></p>
+{% endblock %}

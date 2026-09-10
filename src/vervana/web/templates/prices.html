@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Prices{% endblock %}
+{% block body %}
+<h1>Prices</h1>
+<p class="sub">Wholesale prices. <strong>Ranges are never collapsed</strong>; canonical ₹/kg is derived (quintal→kg). Click a row for its evidence.</p>
+
+<form class="filters" method="get">
+  <input type="text" name="q" placeholder="Search commodity…" value="{{ q }}">
+  <select name="source_class">
+    <option value="">All source classes</option>
+    {% for c in classes %}<option value="{{ c }}" {{ 'selected' if c==f_source_class }}>{{ c }}</option>{% endfor %}
+  </select>
+  <button type="submit">Filter</button>
+  <a class="link" href="/prices" style="align-self:center">reset</a>
+</form>
+
+<table>
+  <thead><tr>
+    <th>Commodity</th><th>Market</th><th>Class</th><th>Low</th><th>High</th>
+    <th>₹/kg</th><th>Conf.</th><th>Date</th><th></th>
+  </tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td>{{ r.commodity }}</td>
+      <td>{{ r.market }}</td>
+      <td><span class="pill {{ r.source_class }}">{{ r.source_class }}</span></td>
+      <td>{{ r.low }}</td>
+      <td>{{ r.high }}</td>
+      <td><strong>{{ r.canonical }}</strong></td>
+      <td>{{ r.confidence }}</td>
+      <td>{{ r.when }}</td>
+      <td><a class="link" href="/evidence/{{ r.id }}">evidence →</a></td>
+    </tr>
+  {% else %}
+    <tr><td colspan="9" style="color:var(--muted)">No prices match. (Delhi is currently empty in Agmarknet — see Coverage.)</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+<p class="sub" style="margin-top:12px">Showing up to 100 rows. Confidence = source reliability × unit-conversion confidence (cross-source agreement not yet computed).</p>
+{% endblock %}

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Review queue{% endblock %}
+{% block body %}
+<h1>Alias review queue</h1>
+<p class="sub">Automated matches are never trusted on their own. Approving records <em>you</em> as the reviewer (R9 — the editorial judgment is the asset).</p>
+
+<table>
+  <thead><tr><th>Alias</th><th>Resolves to</th><th>Method</th><th>Score</th><th>Action</th></tr></thead>
+  <tbody>
+  {% for i in items %}
+    <tr>
+      <td><strong>{{ i.alias }}</strong></td>
+      <td>{{ i.target }}</td>
+      <td>{{ i.method }}</td>
+      <td>{{ i.score }}</td>
+      <td>
+        <form method="post" action="/review/{{ i.id }}/approve" style="display:flex; gap:6px; margin:0">
+          <input type="text" name="reviewer" placeholder="your name" required>
+          <button type="submit">Approve</button>
+        </form>
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="5" style="color:var(--muted)">No pending reviews. 🎉</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

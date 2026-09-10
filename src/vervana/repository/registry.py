@@ -248,3 +248,59 @@ def _seed_markets(session: Session, path: Path) -> None:
 def _read_csv(path: Path) -> list[dict[str, str]]:
     with path.open(encoding="utf-8") as fh:
         return list(csv.DictReader(fh))
+
+
+def bootstrap_from_agmarknet_records(session: Session, records: list[dict]) -> dict[str, int]:
+    """Create commodities/markets (+ verified agmarknet_official aliases) from a live
+    Agmarknet snapshot.
+
+    The spec says "seed from official Agmarknet commodity and variety lists" — the live
+    API *is* that official list, so names taken straight from it are recorded as
+    agmarknet_official aliases and auto-verified (they are the authority, not an automated
+    guess). This is what lets real prices resolve and flow into the platform.
+    """
+    created = {"commodity": 0, "market": 0}
+    for rec in records:
+        low = {str(k).strip().lower(): v for k, v in rec.items()}
+        cname = str(low.get("commodity", "")).strip()
+        mname = str(low.get("market", "")).strip()
+        if cname:
+            existing = session.scalar(select(Commodity).where(Commodity.canonical_name == cname))
+            if existing is None:
+                c = Commodity(canonical_name=cname)
+                session.add(c)
+                session.flush()
+                add_alias(
+                    session,
+                    alias_text=cname,
+                    alias_language="en",
+                    alias_source_type=AliasSourceType.agmarknet_official,
+                    canonical_type=CanonicalType.commodity,
+                    canonical_id=c.id,
+                    created_by="agmarknet",
+                    auto_verify=True,
+                )
+                created["commodity"] += 1
+        if mname:
+            existing = session.scalar(select(Market).where(Market.canonical_name == mname))
+            if existing is None:
+                m = Market(
+                    canonical_name=mname,
+                    city=str(low.get("district", "")).strip() or None,
+                    state=str(low.get("state", "")).strip() or None,
+                )
+                session.add(m)
+                session.flush()
+                add_alias(
+                    session,
+                    alias_text=mname,
+                    alias_language="en",
+                    alias_source_type=AliasSourceType.agmarknet_official,
+                    canonical_type=CanonicalType.market,
+                    canonical_id=m.id,
+                    created_by="agmarknet",
+                    auto_verify=True,
+                )
+                created["market"] += 1
+    session.flush()
+    return created
