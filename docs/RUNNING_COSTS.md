@@ -30,6 +30,11 @@ rapidfuzz, indic-transliteration, jellyfish, psycopg). The embedding/torch match
 stays **deferred** (it would force a larger, costlier VPS); the shipped matchers are
 lexical + phonetic, both light.
 
+**M2 adds ₹0 fixed cost.** New dep is `httpx` (light). The Agmarknet API (data.gov.in) is
+**free** under GODL-India. The only new *variable* item is negligible: outbound API calls
+during the daily batch. Raw payloads are archived to local disk (`data/raw/`, git-ignored),
+which counts toward the object-storage line already in the table above once deployed.
+
 ## 2. Variable messaging/compute (tracked, not yet incurred)
 
 | Component | Added at | Basis | Note |

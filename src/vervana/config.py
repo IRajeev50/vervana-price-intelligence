@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     # config dumps, never to be changed away from Asia/Kolkata.
     timezone: str = PROJECT_TIMEZONE
 
+    # Comma-separated connector names to disable, e.g. "youtube,enam". A disabled
+    # connector's run is a logged no-op — nothing else breaks (Part 4).
+    disabled_connectors: str = ""
+
     # --- Datastore ---
     # Defaults to a local SQLite file so nothing is required to import/run in dev
     # and tests. Production sets VERVANA_DATABASE_URL to the Postgres DSN.

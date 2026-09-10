@@ -156,5 +156,92 @@ def match_eval(path: Path = EVAL_FILE) -> None:
     typer.echo(format_report(results))
 
 
+# ---------------------------------------------------------------------------
+# ingest
+# ---------------------------------------------------------------------------
+ingest_app = typer.Typer(help="Data-source ingestion.", no_args_is_help=True)
+app.add_typer(ingest_app, name="ingest")
+
+
+@ingest_app.command("agmarknet")
+def ingest_agmarknet(
+    mode: str = "daily",
+    state: str = "Delhi",
+    max_records: int = 1000,
+) -> None:
+    """Fetch live Agmarknet data (needs VERVANA_DATA_GOV_IN_API_KEY) and ingest it."""
+    from vervana.connectors.agmarknet import AgmarknetConnector
+    from vervana.db.engine import session_scope
+
+    connector = AgmarknetConnector()
+    if not connector.enabled():
+        typer.echo(f"connector '{connector.name}' is disabled via config; nothing to do")
+        return
+    with session_scope() as session:
+        run, result = connector.run(
+            session, mode=mode, filters={"State": state}, max_records=max_records
+        )
+    typer.echo(
+        f"ingest_run#{run.id} {run.status}: in={result.rows_in} "
+        f"accepted={result.accepted} rejected={result.rejected}"
+    )
+    for reason, count in result.reason_counts.items():
+        typer.echo(f"  rejected [{count}]: {reason}")
+
+
+@ingest_app.command("agmarknet-file")
+def ingest_agmarknet_file(path: Path) -> None:
+    """Ingest a locally-saved Agmarknet JSON payload (offline; a records[] array or envelope)."""
+    import json
+
+    from vervana.connectors.agmarknet import AgmarknetConnector
+    from vervana.db.engine import session_scope
+
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    records = payload.get("records", payload) if isinstance(payload, dict) else payload
+    connector = AgmarknetConnector()
+    with session_scope() as session:
+        result = connector.ingest(session, records, mode="file")
+    typer.echo(f"in={result.rows_in} accepted={result.accepted} rejected={result.rejected}")
+    for reason, count in result.reason_counts.items():
+        typer.echo(f"  rejected [{count}]: {reason}")
+
+
+# ---------------------------------------------------------------------------
+# coverage
+# ---------------------------------------------------------------------------
+coverage_app = typer.Typer(help="Coverage study (R5).", no_args_is_help=True)
+app.add_typer(coverage_app, name="coverage")
+
+
+@coverage_app.command("report")
+def coverage_report(
+    market: str = "Azadpur",
+    days: int = 90,
+    live: bool = typer.Option(
+        False, help="Assert the data is from the LIVE API (real R5 verdict)."
+    ),
+) -> None:
+    """Run the Agmarknet Delhi coverage study for a market over the last N days."""
+    from datetime import timedelta
+
+    from sqlalchemy import select
+
+    from vervana.analytics.coverage import compute_coverage, format_report
+    from vervana.db.engine import session_scope
+    from vervana.models.entities import Market
+    from vervana.time import now_utc, to_ist
+
+    with session_scope() as session:
+        m = session.scalar(select(Market).where(Market.canonical_name == market))
+        if m is None:
+            typer.echo(f"unknown market '{market}' (seed the registry first)", err=True)
+            raise typer.Exit(code=1)
+        end = to_ist(now_utc()).date()
+        start = end - timedelta(days=days - 1)
+        report = compute_coverage(session, market_id=m.id, start=start, end=end)
+        typer.echo(format_report(report, is_live=live))
+
+
 if __name__ == "__main__":  # pragma: no cover
     app()

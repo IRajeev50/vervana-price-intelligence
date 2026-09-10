@@ -87,6 +87,29 @@ def verified_aliases(session: Session) -> list[Alias]:
     return list(session.scalars(select(Alias).where(Alias.verified_by.is_not(None))))
 
 
+def resolve_by_name(session: Session, *, name: str, canonical_type: CanonicalType) -> int | None:
+    """Resolve an incoming name to a canonical id via a VERIFIED alias, else None.
+
+    Only verified aliases are trusted (Part 3.2). Matching is on the normalised form,
+    so "AZADPUR" resolves to the "Azadpur" alias. A tie across different canonicals is
+    treated as unresolved (None) rather than a guess — the caller enqueues it for review.
+    """
+    from vervana.matching.normalize import normalize
+
+    target = normalize(name)
+    matches = {
+        a.canonical_id
+        for a in session.scalars(
+            select(Alias).where(
+                Alias.canonical_type == canonical_type,
+                Alias.verified_by.is_not(None),
+            )
+        )
+        if normalize(a.alias_text) == target
+    }
+    return next(iter(matches)) if len(matches) == 1 else None
+
+
 def counts(session: Session) -> dict[str, int]:
     """Row counts for the registry, for seed/verification reporting."""
     return {
@@ -106,12 +129,40 @@ def counts(session: Session) -> dict[str, int]:
 
 
 def seed_registry(session: Session, seed_dir: Path) -> dict[str, int]:
-    """Idempotently seed commodities, varieties, markets, and their official aliases."""
+    """Idempotently seed commodities, varieties, markets, units, and official aliases."""
     _seed_commodities(session, seed_dir / "commodities.csv")
     _seed_varieties(session, seed_dir / "varieties.csv")
     _seed_markets(session, seed_dir / "markets_delhi.csv")
+    _seed_unit_conventions(session, seed_dir / "unit_conventions.csv")
     session.flush()
     return counts(session)
+
+
+def _seed_unit_conventions(session: Session, path: Path) -> None:
+    from vervana.models.units import UnitConvention
+
+    if not path.exists():
+        return
+    for row in _read_csv(path):
+        unit_raw = row["unit_raw"].strip()
+        exists = session.scalar(
+            select(UnitConvention).where(
+                UnitConvention.unit_raw == unit_raw,
+                UnitConvention.market_id.is_(None),
+                UnitConvention.commodity_id.is_(None),
+            )
+        )
+        if exists:
+            continue
+        session.add(
+            UnitConvention(
+                unit_raw=unit_raw,
+                kg_equivalent=float(row["kg_equivalent"]),
+                source=row.get("source") or "seed",
+                confidence=float(row.get("confidence") or 1.0),
+            )
+        )
+        session.flush()
 
 
 def _get_or_create_commodity(session: Session, name: str, code: str | None) -> Commodity:

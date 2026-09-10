@@ -2,7 +2,7 @@
 
 > **Generated file — do not hand-edit.** Produced by `scripts/gen_risk_register.py` (run via `make risks`) from `scripts/risks_seed.yaml` (definitions) and a grep of the codebase for `RISK[<ID>]:` tags (live occurrences). Edit the seed or the code, then regenerate.
 
-**Summary:** 13 risks declared · 1 have live code tags · 12 not yet reached in code · 1 tag occurrences total.
+**Summary:** 13 risks declared · 3 have live code tags · 10 not yet reached in code · 3 tag occurrences total.
 
 ## 1. Declared risks (definitions)
 
@@ -11,8 +11,8 @@
 | `R1-INFO-CHANGES-BEHAVIOUR` | Giving people better price data changes their decisions. | 0 | — not yet reached in code — |
 | `R2-BEACHHEAD` | Delhi mandi traders are the first customers. | 0 | — not yet reached in code — |
 | `R3-VIDEO-PROVENANCE` | Video-quoted ranges are near-executed "aadat" prices comparable to trades. | 0 | — not yet reached in code — |
-| `R4-WEAK-GROUND-TRUTH` | Agmarknet validates video quotes. | 0 | — not yet reached in code — |
-| `R5-COVERAGE-EDGE` | Agmarknet's Delhi coverage is bad enough that we beat it. | 0 | — not yet reached in code — |
+| `R4-WEAK-GROUND-TRUTH` | Agmarknet validates video quotes. | 1 | PENDING |
+| `R5-COVERAGE-EDGE` | Agmarknet's Delhi coverage is bad enough that we beat it. | 1 | PENDING (awaiting a run against LIVE Delhi data; fixture runs are not the verdict) |
 | `R6-MOAT-MODEL-GAP` | The video corpus is the defensibility AND the model trains on Agmarknet history. | 0 | — not yet reached in code — |
 | `R7-FORECAST-BAR` | Gradient boosting beats naive baselines on next-day F&V prices. | 0 | — not yet reached in code — |
 | `R8-YOUTUBE-TOS` | The corpus is both a legal risk and a defensible asset. | 0 | — not yet reached in code — |
@@ -26,6 +26,8 @@
 
 | ID | Location | Summary | Verdict |
 |---|---|---|---|
+| `R4-WEAK-GROUND-TRUTH` | `src/vervana/connectors/agmarknet.py:228` | We record Agmarknet as `executed_summary` — a | PENDING |
+| `R5-COVERAGE-EDGE` | `src/vervana/analytics/coverage.py:69` | The entire product edge assumes Agmarknet's Delhi coverage | PENDING (awaiting a run against LIVE Delhi data; fixture runs are not the verdict) |
 | `R9-NOT-IP` | `src/vervana/models/entities.py:26` | This registry is treated as proprietary IP. Under Eastern Book | PENDING |
 
 ## 3. Evidence against each assumption

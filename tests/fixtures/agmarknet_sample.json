@@ -1,0 +1,15 @@
+{
+  "_note": "SYNTHETIC fixture matching the documented data.gov.in schema. NOT real Agmarknet data. Prices are in Rs/quintal. Used for offline tests only.",
+  "total": 8,
+  "count": 8,
+  "records": [
+    {"state": "Delhi", "district": "Delhi", "market": "Azadpur", "commodity": "Potato", "variety": "Desi", "grade": "FAQ", "arrival_date": "10/09/2026", "min_price": "1200", "max_price": "1500", "modal_price": "1350"},
+    {"state": "Delhi", "district": "Delhi", "market": "Azadpur", "commodity": "Onion", "variety": "Red", "grade": "FAQ", "arrival_date": "10/09/2026", "min_price": "2000", "max_price": "2600", "modal_price": "2300"},
+    {"state": "Delhi", "district": "Delhi", "market": "Keshopur", "commodity": "Potato", "variety": "Desi", "grade": "FAQ", "arrival_date": "10/09/2026", "min_price": "1250", "max_price": "1450", "modal_price": "1350"},
+    {"state": "Delhi", "district": "Delhi", "market": "Azadpur", "commodity": "Tomato", "variety": "Local", "grade": "FAQ", "arrival_date": "10/09/2026", "min_price": "0", "max_price": "0", "modal_price": "0"},
+    {"State": "Delhi", "District": "Delhi", "Market": "Azadpur", "Commodity": "Onion", "Variety": "Red", "Grade": "FAQ", "Arrival_Date": "09/09/2026", "Min_Price": "2100", "Max_Price": "2500", "Modal_Price": "2300"},
+    {"state": "Delhi", "district": "Delhi", "market": "Azadpur", "commodity": "Dragon Fruit", "variety": "Local", "grade": "FAQ", "arrival_date": "10/09/2026", "min_price": "8000", "max_price": "9000", "modal_price": "8500"},
+    {"state": "Delhi", "district": "Delhi", "market": "Azadpur", "commodity": "Potato", "variety": "Desi", "grade": "FAQ", "arrival_date": "10/09/2026", "min_price": "1600", "max_price": "1400", "modal_price": "1500"},
+    {"state": "Delhi", "district": "Delhi", "market": "Some Random Mandi", "commodity": "Potato", "variety": "Desi", "grade": "FAQ", "arrival_date": "10/09/2026", "min_price": "1200", "max_price": "1500", "modal_price": "1350"}
+  ]
+}

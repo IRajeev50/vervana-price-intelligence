@@ -65,6 +65,19 @@ matcher proposed it and how confidently.
 `effective_from/to`. Most specific matching row wins.
 - **Must never be used for:** inventing a weight when no row matches (leave canonical NULL).
 
+## `ingest_run` — connector run metadata (M2)
+One row per connector run. `connector`, `mode` (daily/backfill/file), `status`
+(running/ok/failed), `started_at`/`finished_at`, `rows_in`/`accepted`/`rejected`,
+`rejection_reasons` (JSON `{reason: count}`), `raw_payload_path` (where the raw payload was
+archived before parsing), `error`.
+- **Must never be used for:** hiding a failed run — a failed fetch records `status=failed`
+  with `error` and writes **no** partial price rows.
+
+**Agmarknet specifics (how rows land in `price_observation`):** `source_class =
+executed_summary`, `time_basis = daily_summary`; `price_low/high = min/max`, `price_point =
+modal`; `unit_raw = "Quintal"`; canonical ₹/kg = per-quintal price ÷ 100 (a *defined*
+conversion, seeded in `unit_convention`). Prices are ₹/quintal at source. Unresolved
+commodity/market names are **rejected with a reason**, never guessed.
+
 ## Not yet built (later milestones)
-`ingest_run` (M2 connector metadata), `context_signal` (M4/M7 weather/diesel/festival),
-observer identity + independence (M7).
+`context_signal` (M4/M7 weather/diesel/festival), observer identity + independence (M7).
