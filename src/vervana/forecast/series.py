@@ -54,12 +54,20 @@ def price_series(
 
 
 def quote_midpoint_series(session: Session, *, commodity_id: int, market_id: int) -> np.ndarray:
-    """Daily series from quote_indicative *range midpoints* (paise), oldest→newest.
+    """Daily series from quote_indicative *range midpoints*, converted to ₹/kg using the
+    inferred per-commodity unit (paise), oldest→newest.
 
-    Video quotes usually have no stated unit, so canonical ₹/kg is NULL; for modelling we
-    use the range midpoint in the quoted (unstated) unit. This is exactly the R13 midpoint
-    assumption — the series is only comparable within itself, not to executed ₹/kg.
+    Video quotes have no stated unit, so we apply the inferred kg/quintal scale
+    (unit_inference). Where the unit can't be inferred the raw midpoint is kept — the
+    series stays internally consistent (directional accuracy / sMAPE are scale-invariant),
+    only absolute MAE would then not be ₹/kg. R13 midpoint assumption applies throughout.
     """
+    from vervana.analytics.unit_inference import infer_units
+    from vervana.models.entities import Commodity
+
+    cname = session.get(Commodity, commodity_id).canonical_name
+    u = infer_units(session).get(cname)
+    scale = u.scale_to_kg if (u and u.scale_to_kg) else 1.0
     rows = list(
         session.scalars(
             select(PriceObservation)
@@ -75,7 +83,7 @@ def quote_midpoint_series(session: Session, *, commodity_id: int, market_id: int
     counts: dict[str, int] = {}
     for r in rows:
         day = to_ist(r.observed_at).date().isoformat()
-        mid = (r.price_low_paise + r.price_high_paise) / 2
+        mid = (r.price_low_paise + r.price_high_paise) / 2 * scale  # inferred ₹/kg
         # average multiple quotes on the same day (same source class — guard-safe)
         by_day[day] = by_day.get(day, 0.0) + mid
         counts[day] = counts.get(day, 0) + 1

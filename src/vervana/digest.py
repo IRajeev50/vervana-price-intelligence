@@ -39,19 +39,32 @@ DEFAULT_BASKET = ["Potato", "Onion", "Tomato", "Capsicum", "Cauliflower", "Green
 @dataclass
 class Line:
     commodity: str
-    wholesale_kg: int | None
+    wholesale_kg: int | None  # national Agmarknet (executed_summary)
     wholesale_obs: int | None
     wholesale_conf: float | None
     retail_kg: int | None
     retail_obs: int | None
     retail_conf: float | None
     retail_platform: str | None
+    delhi_video_kg: int | None = None  # Delhi video quote (quote_indicative, units-applied, R3)
+    delhi_video_obs: int | None = None
+    delhi_video_conf: float | None = None
+
+    @property
+    def ref_kg(self) -> int | None:
+        """The wholesale reference for the spread: Delhi video preferred (it's Delhi-
+        specific), else national Agmarknet."""
+        return self.delhi_video_kg if self.delhi_video_kg is not None else self.wholesale_kg
+
+    @property
+    def ref_label(self) -> str:
+        return "Delhi video" if self.delhi_video_kg is not None else "national Agmarknet"
 
     @property
     def spread_kg(self) -> int | None:
-        if self.wholesale_kg is None or self.retail_kg is None:
+        if self.ref_kg is None or self.retail_kg is None:
             return None
-        return self.retail_kg - self.wholesale_kg
+        return self.retail_kg - self.ref_kg
 
 
 def _latest(session: Session, commodity_id: int, source_class: SourceClass):
@@ -66,8 +79,39 @@ def _latest(session: Session, commodity_id: int, source_class: SourceClass):
     )
 
 
+def _latest_delhi_video(session: Session, commodity_id: int, scale: float | None):
+    """Latest Delhi video quote for a commodity, with the inferred unit scale applied."""
+    from vervana.analytics.groundtruth import VIDEO_MARKETS
+    from vervana.models.entities import Market
+
+    if not scale:
+        return None
+    market_ids = [
+        m.id
+        for m in session.scalars(select(Market).where(Market.canonical_name.in_(VIDEO_MARKETS)))
+    ]
+    if not market_ids:
+        return None
+    o = session.scalar(
+        select(PriceObservation)
+        .where(
+            PriceObservation.commodity_id == commodity_id,
+            PriceObservation.source_class == SourceClass.quote_indicative,
+            PriceObservation.market_id.in_(market_ids),
+        )
+        .order_by(PriceObservation.observed_at.desc(), PriceObservation.id.desc())
+    )
+    if o is None:
+        return None
+    kg = round((o.price_low_paise + o.price_high_paise) / 2 * scale)
+    return o.id, kg
+
+
 def build_lines(session: Session, commodities: list[str] | None = None) -> list[Line]:
+    from vervana.analytics.unit_inference import infer_units
+
     names = commodities or DEFAULT_BASKET
+    units = infer_units(session)
     lines: list[Line] = []
     for name in names:
         c = session.scalar(select(Commodity).where(Commodity.canonical_name == name))
@@ -83,6 +127,8 @@ def build_lines(session: Session, commodities: list[str] | None = None) -> list[
                 select(RetailOfferDetail).where(RetailOfferDetail.observation_id == rt.id)
             )
             platform = d.platform if d else None
+        u = units.get(name)
+        video = _latest_delhi_video(session, c.id, u.scale_to_kg if u else None)
         lines.append(
             Line(
                 commodity=name,
@@ -93,6 +139,9 @@ def build_lines(session: Session, commodities: list[str] | None = None) -> list[
                 retail_obs=rt.id if rt else None,
                 retail_conf=price_confidence(rt) if rt else None,
                 retail_platform=platform,
+                delhi_video_kg=video[1] if video else None,
+                delhi_video_obs=video[0] if video else None,
+                delhi_video_conf=0.5 if video else None,  # quote_indicative reliability (§5.4)
             )
         )
     return lines
@@ -116,34 +165,39 @@ def build_digest(session: Session, commodities: list[str] | None = None) -> str:
     out = [f"*Vervana — HoReCa procurement digest*  ({today})", ""]
     any_data = False
     for ln in lines:
-        if ln.wholesale_kg is None and ln.retail_kg is None:
+        if ln.ref_kg is None and ln.retail_kg is None:
             out.append(f"• {ln.commodity}: no price today")
             continue
         any_data = True
-        wh = (
-            f"wholesale {_rupees(ln.wholesale_kg)}"
-            if ln.wholesale_kg is not None
-            else "wholesale —"
-        )
+        parts = []
+        if ln.delhi_video_kg is not None:
+            parts.append(f"Delhi(video) {_rupees(ln.delhi_video_kg)}")
+        if ln.wholesale_kg is not None:
+            parts.append(f"national {_rupees(ln.wholesale_kg)}")
         rt = (
             f"retail {_rupees(ln.retail_kg)}"
             + (f" ({ln.retail_platform})" if ln.retail_platform else "")
             if ln.retail_kg is not None
             else "retail —"
         )
+        parts.append(rt)
         spread = ""
-        if ln.spread_kg is not None and ln.wholesale_kg:
-            pct = ln.spread_kg / ln.wholesale_kg * 100
+        if ln.spread_kg is not None and ln.ref_kg:
+            pct = ln.spread_kg / ln.ref_kg * 100
             amt = f"₹{abs(ln.spread_kg) / 100:,.0f}/kg"
-            if ln.spread_kg > 0:
-                spread = f"  → retail {amt} above wholesale (+{pct:.0f}%)"
-            elif ln.spread_kg < 0:
-                spread = f"  → retail {amt} below wholesale ({pct:.0f}%)"
-        out.append(f"• *{ln.commodity}*: {wh} | {rt}{spread}")
+            direction = "above" if ln.spread_kg > 0 else "below"
+            sign = "+" if ln.spread_kg > 0 else ""
+            spread = f"  → retail {amt} {direction} {ln.ref_label} ({sign}{pct:.0f}%)"
+        out.append(f"• *{ln.commodity}*: {' | '.join(parts)}{spread}")
         ev = []
+        if ln.delhi_video_obs:
+            ev.append(
+                f"Delhi-video ev#{ln.delhi_video_obs} · quote_indicative · "
+                f"conf {ln.delhi_video_conf}"
+            )
         if ln.wholesale_obs:
             ev.append(
-                f"wholesale ev#{ln.wholesale_obs} · executed_summary · conf {ln.wholesale_conf}"
+                f"national ev#{ln.wholesale_obs} · executed_summary · conf {ln.wholesale_conf}"
             )
         if ln.retail_obs:
             ev.append(f"retail ev#{ln.retail_obs} · retail_offer · conf {ln.retail_conf}")
@@ -152,10 +206,11 @@ def build_digest(session: Session, commodities: list[str] | None = None) -> str:
         out.append("_No priced commodities in the basket yet._")
     out += [
         "",
-        "_Wholesale = latest available Agmarknet price (currently national, not Delhi — "
-        "Delhi mandi data is absent from the feed, so spreads are indicative until it "
-        "arrives). Wholesale and retail are shown separately and never averaged._",
-        "_Not trading advice. Wholesale via Agmarknet (data.gov.in); DMI does not warrant "
-        "accuracy. Retail via manual quick-commerce panel._",
+        "_Spread reference = Delhi video quote where available (unit-inferred to ₹/kg; an "
+        "UNVERIFIED quote signal, not an executed price — R3), else national Agmarknet. "
+        "All sources shown separately and never averaged._",
+        "_Not trading advice. National wholesale via Agmarknet (data.gov.in); DMI does not "
+        "warrant accuracy. Delhi via manually-transcribed video quotes. Retail via manual "
+        "quick-commerce panel._",
     ]
     return "\n".join(out)

@@ -1,49 +1,49 @@
 {
-  "made_at": "2026-09-10T05:55:31.466276+00:00",
+  "made_at": "2026-09-10T06:31:13.067581+00:00",
   "per_model": {
     "naive": {
-      "mae_paise": 155884.7,
-      "smape": 0.6746,
+      "mae_paise": 45760.0,
+      "smape": 1.1209,
       "directional_accuracy": 0.0,
-      "pi_coverage": 0.931,
+      "pi_coverage": 0.9273,
       "pnl_vs_naive_paise": 0.0,
-      "n": 29
+      "n": 55
     },
     "seasonal_naive": {
-      "mae_paise": 161230.2,
-      "smape": 0.7716,
-      "directional_accuracy": 0.5172,
-      "pi_coverage": 0.931,
-      "pnl_vs_naive_paise": 202866.1,
-      "n": 29
+      "mae_paise": 41179.8,
+      "smape": 1.0201,
+      "directional_accuracy": 0.6545,
+      "pi_coverage": 0.9091,
+      "pnl_vs_naive_paise": 713149.8,
+      "n": 55
     },
     "moving_average": {
-      "mae_paise": 145095.7,
-      "smape": 0.7896,
-      "directional_accuracy": 0.5862,
-      "pi_coverage": 0.9655,
-      "pnl_vs_naive_paise": 286734.2,
-      "n": 29
+      "mae_paise": 37822.3,
+      "smape": 1.0219,
+      "directional_accuracy": 0.7091,
+      "pi_coverage": 0.9636,
+      "pnl_vs_naive_paise": 961714.9,
+      "n": 55
     },
     "sarima": {
-      "mae_paise": 396050.6,
-      "smape": 0.8271,
-      "directional_accuracy": 0.4138,
-      "pi_coverage": 0.8966,
-      "pnl_vs_naive_paise": -1830737.1,
-      "n": 29
+      "mae_paise": 37595.9,
+      "smape": 1.1592,
+      "directional_accuracy": 0.6364,
+      "pi_coverage": 0.8727,
+      "pnl_vs_naive_paise": 584133.9,
+      "n": 55
     },
     "gradient_boosting": {
-      "mae_paise": 100580.8,
-      "smape": 0.6572,
-      "directional_accuracy": 0.5862,
-      "pi_coverage": 0.7931,
-      "pnl_vs_naive_paise": 293692.5,
-      "n": 29
+      "mae_paise": 37148.8,
+      "smape": 1.0155,
+      "directional_accuracy": 0.6364,
+      "pi_coverage": 0.8727,
+      "pnl_vs_naive_paise": 840836.1,
+      "n": 55
     }
   },
-  "gradient_boosting_directional": 0.5862068965517241,
-  "seasonal_naive_directional": 0.5172413793103449,
-  "model_shippable": true,
-  "kill_reason": "gradient_boosting directional 58.6% beats seasonal_naive 51.7% by >10% \u2014 model may serve."
+  "gradient_boosting_directional": 0.6363636363636364,
+  "seasonal_naive_directional": 0.6545454545454545,
+  "model_shippable": false,
+  "kill_reason": "gradient_boosting directional 63.6% does NOT beat seasonal_naive 65.5% by >10% (needs >72.0%) \u2014 serving falls back to baseline + interval, labelled as such (R7)."
 }
