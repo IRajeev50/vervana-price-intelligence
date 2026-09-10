@@ -46,6 +46,32 @@ real national mandi prices while monitoring Delhi coverage.
   `agmarknet_official` (they are the authority, not an automated guess) — consistent with R9
   (only *editorial* alias judgment is the protected asset).
 
+## Follow-up completed (2026-09-10): persona + digest + quick-commerce
+
+Founder set the persona: **HoReCa buyers + quick-commerce operators** (resolves R2 →
+RESOLVED). Built the two pending pieces:
+
+- **Quick-commerce retail ingest** (Part 4.5) — `QuickCommerceConnector` with the
+  **compliant manual-panel CSV path only**; the vendor-feed `fetch_raw` is a stub that
+  *refuses to run*, carrying `R10`. **No scraper** (Part 7). Pack prices normalised to
+  ₹/kg while pack size / MRP / selling price / fees are kept separately
+  (`retail_offer_detail`). Sample: 6 rows imported → `retail_offer` observations.
+- **HoReCa procurement digest** (the WhatsApp piece) — `vervana digest` and `/digest`
+  render the **wholesale-vs-retail spread** for a basket, e.g. *Tomato: wholesale ₹28/kg |
+  retail ₹58/kg (Blinkit) → retail ₹30/kg above wholesale (+107%)*. The two are shown
+  side by side and **never blended** (guard enforced; a test proves averaging them still
+  raises). Every line carries an evidence id, source class, and confidence (Part 7). The
+  digest honestly labels wholesale as "national latest, not Delhi" until the R5 capture
+  yields Delhi data.
+- Confidence unified in `vervana/confidence.py` (source reliability × conversion conf ×
+  agreement=1.0-for-now, labelled partial per §5.4).
+- **67 offline tests pass; lint clean.** Risk register: 5 live tags (R2 RESOLVED; R4, R5,
+  R9, R10 PENDING).
+
+**Still deferred:** actually *sending* the digest to WhatsApp numbers needs the Meta
+Business API (a data-residency decision, OPEN_QUESTIONS #7) and is a permissioned send —
+the message *content* is done; wiring the channel is the remaining step.
+
 ## Cost impact
 ₹0 fixed (FastAPI/uvicorn/Jinja are libraries; served from the same VPS as the batch).
 

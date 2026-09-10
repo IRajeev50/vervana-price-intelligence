@@ -17,8 +17,10 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 
 from vervana.analytics.coverage import compute_coverage, r5_verdict
+from vervana.confidence import price_confidence
 from vervana.db.base import SourceClass
 from vervana.db.engine import session_scope
+from vervana.digest import build_digest
 from vervana.models.entities import Alias, Commodity, Market
 from vervana.models.ingest import IngestRun
 from vervana.models.observations import PriceObservation
@@ -29,16 +31,6 @@ from vervana.time import format_ist, now_utc, to_ist
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
-# Base reliability by source class — one factor of the confidence score (§5.4).
-# Cross-source agreement is not computed yet (needs multiple comparable sources), so we
-# show this honestly as a partial confidence, not a finished composite.
-SOURCE_RELIABILITY = {
-    SourceClass.executed_trade: 0.95,
-    SourceClass.executed_summary: 0.80,
-    SourceClass.retail_offer: 0.70,
-    SourceClass.quote_indicative: 0.50,
-}
-
 app = FastAPI(title="Vervana — Price Intelligence")
 
 
@@ -47,9 +39,7 @@ def _paise_to_rupee(paise: int | None) -> str:
 
 
 def _confidence(obs: PriceObservation) -> float:
-    base = SOURCE_RELIABILITY.get(obs.source_class, 0.5)
-    conv = float(obs.unit_conversion_confidence) if obs.unit_conversion_confidence else 1.0
-    return round(base * conv, 2)
+    return price_confidence(obs)
 
 
 def _ctx(request: Request, **kw) -> dict:
@@ -206,6 +196,13 @@ def coverage(request: Request):
     return TEMPLATES.TemplateResponse(
         request, "coverage.html", _ctx(request, reports=reports, probe=_read_probe()[-14:])
     )
+
+
+@app.get("/digest", response_class=HTMLResponse)
+def digest_page(request: Request):
+    with session_scope() as s:
+        text = build_digest(s)
+    return TEMPLATES.TemplateResponse(request, "digest.html", _ctx(request, digest=text))
 
 
 @app.get("/review", response_class=HTMLResponse)

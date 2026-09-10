@@ -1,0 +1,7 @@
+platform,sku_title,commodity,pack_size_raw,pack_kg,mrp_rupees,selling_price_rupees,fees_rupees,observed_date,source_url
+Blinkit,Potato (Aloo) 1 kg,Potato,1 kg,1.0,45,39,0,2026-09-10,manual-panel://blinkit/potato-1kg
+Zepto,Onion (Pyaaz) 1 kg,Onion,1 kg,1.0,55,49,0,2026-09-10,manual-panel://zepto/onion-1kg
+Blinkit,Tomato (Tamatar) 500 g,Tomato,500 g,0.5,35,29,0,2026-09-10,manual-panel://blinkit/tomato-500g
+Instamart,Capsicum (Shimla Mirch) 250 g,Capsicum,250 g,0.25,45,39,0,2026-09-10,manual-panel://instamart/capsicum-250g
+Zepto,Cauliflower (Phool Gobhi) 1 pc,Cauliflower,1 pc (~600 g),0.6,40,35,0,2026-09-10,manual-panel://zepto/cauliflower-1pc
+Blinkit,Green Chilli (Hari Mirch) 100 g,Green Chilli,100 g,0.1,15,12,0,2026-09-10,manual-panel://blinkit/green-chilli-100g

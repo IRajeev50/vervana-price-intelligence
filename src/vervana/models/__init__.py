@@ -3,6 +3,7 @@
 from vervana.models.entities import Alias, Commodity, Grade, Market, Variety
 from vervana.models.ingest import IngestRun
 from vervana.models.observations import PriceObservation
+from vervana.models.retail import RetailOfferDetail
 from vervana.models.review import AliasReview
 from vervana.models.units import UnitConvention
 
@@ -14,6 +15,7 @@ __all__ = [
     "IngestRun",
     "Market",
     "PriceObservation",
+    "RetailOfferDetail",
     "UnitConvention",
     "Variety",
 ]

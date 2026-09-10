@@ -227,6 +227,19 @@ def ingest_agmarknet_file(path: Path) -> None:
         typer.echo(f"  rejected [{count}]: {reason}")
 
 
+@ingest_app.command("qcomm-csv")
+def ingest_qcomm_csv(path: Path) -> None:
+    """Import quick-commerce retail prices from a manual-panel CSV (no scraping)."""
+    from vervana.connectors.quickcommerce import QuickCommerceConnector
+    from vervana.db.engine import session_scope
+
+    with session_scope() as session:
+        result = QuickCommerceConnector().import_csv(session, path)
+    typer.echo(f"in={result.rows_in} accepted={result.accepted} rejected={result.rejected}")
+    for reason, count in sorted(result.reason_counts.items(), key=lambda kv: -kv[1]):
+        typer.echo(f"  rejected [{count}]: {reason}")
+
+
 @ingest_app.command("history")
 def ingest_history(limit: int = 20) -> None:
     """Show recent ingest runs — the daily-capture history (R5 coverage over time)."""
@@ -284,6 +297,17 @@ def coverage_report(
         start = end - timedelta(days=days - 1)
         report = compute_coverage(session, market_id=m.id, start=start, end=end)
         typer.echo(format_report(report, is_live=live))
+
+
+@app.command()
+def digest(commodities: str = "") -> None:
+    """Print the HoReCa procurement digest (wholesale vs quick-commerce retail spread)."""
+    from vervana.db.engine import session_scope
+    from vervana.digest import build_digest
+
+    basket = [c.strip() for c in commodities.split(",") if c.strip()] or None
+    with session_scope() as session:
+        typer.echo(build_digest(session, basket))
 
 
 @app.command()
