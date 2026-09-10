@@ -201,10 +201,38 @@ def ingest_agmarknet_file(path: Path) -> None:
     records = payload.get("records", payload) if isinstance(payload, dict) else payload
     connector = AgmarknetConnector()
     with session_scope() as session:
-        result = connector.ingest(session, records, mode="file")
-    typer.echo(f"in={result.rows_in} accepted={result.accepted} rejected={result.rejected}")
-    for reason, count in result.reason_counts.items():
+        run, result = connector.ingest_with_run(
+            session, records, mode="file", raw_payload_path=path
+        )
+    typer.echo(
+        f"ingest_run#{run.id} {run.status}: in={result.rows_in} "
+        f"accepted={result.accepted} rejected={result.rejected}"
+    )
+    for reason, count in sorted(result.reason_counts.items(), key=lambda kv: -kv[1])[:8]:
         typer.echo(f"  rejected [{count}]: {reason}")
+
+
+@ingest_app.command("history")
+def ingest_history(limit: int = 20) -> None:
+    """Show recent ingest runs — the daily-capture history (R5 coverage over time)."""
+    from sqlalchemy import select
+
+    from vervana.db.engine import session_scope
+    from vervana.models.ingest import IngestRun
+    from vervana.time import format_ist
+
+    with session_scope() as session:
+        runs = list(
+            session.scalars(select(IngestRun).order_by(IngestRun.started_at.desc()).limit(limit))
+        )
+        if not runs:
+            typer.echo("(no ingest runs yet)")
+            return
+        for r in runs:
+            typer.echo(
+                f"run#{r.id:<4} {format_ist(r.started_at)}  {r.connector}/{r.mode:<8} "
+                f"{r.status:<7} in={r.rows_in} accepted={r.accepted} rejected={r.rejected}"
+            )
 
 
 # ---------------------------------------------------------------------------

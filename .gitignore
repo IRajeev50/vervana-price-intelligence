@@ -5,6 +5,8 @@ __pycache__/
 *.sqlite3
 *.db
 data/raw/
+data/coverage_probe.csv
+logs/
 .venv/
 venv/
 .DS_Store

@@ -254,6 +254,34 @@ class AgmarknetConnector(Connector):
         return result
 
     # --- orchestration ---------------------------------------------------------
+    def ingest_with_run(self, session, records: list[dict], *, mode: str, raw_payload_path=None):
+        """Ingest already-fetched records AND record an ingest_run.
+
+        Used by the daily-capture path (records fetched out-of-process via curl), so
+        every capture — even one that returns zero Delhi rows — leaves a dated run row
+        that becomes the coverage history.
+        """
+        from vervana.models.ingest import IngestRun
+
+        run = IngestRun(
+            connector=self.name,
+            mode=mode,
+            status="running",
+            started_at=now_utc(),
+            raw_payload_path=str(raw_payload_path) if raw_payload_path else None,
+        )
+        session.add(run)
+        session.flush()
+        result = self.ingest(session, records, mode=mode)
+        run.rows_in = result.rows_in
+        run.accepted = result.accepted
+        run.rejected = result.rejected
+        run.rejection_reasons = result.reason_counts
+        run.status = "ok"
+        run.finished_at = now_utc()
+        session.flush()
+        return run, result
+
     def run(self, session, *, mode: str = "daily", **fetch_params):
         """Fetch -> archive raw -> ingest -> record ingest_run. Failure leaves no partial data."""
         from vervana.models.ingest import IngestRun

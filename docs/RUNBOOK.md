@@ -28,6 +28,35 @@ _(filled at deploy.)_ Planned shape: provision a new Indian-region VPS → `dock
 up` → restore the latest nightly `pg_dump` from Indian object storage → verify row counts
 against the last `ingest_run`.
 
+## Daily Agmarknet capture (R5 coverage-over-time)
+
+A macOS **launchd** agent runs the snapshot capture **3×/day at 10:00, 15:00, 20:00 IST**
+to measure whether/when Delhi appears in Agmarknet's daily feed. It only runs when the Mac
+is awake around those times.
+
+- **Script:** `scripts/daily_capture.sh` (curl-based; works even where httpx is blocked).
+- **Agent:** `~/Library/LaunchAgents/in.vervana.dailycapture.plist`.
+- **Data it builds:** `vervana.dev.sqlite3` (an `ingest_run` per capture) and
+  `data/coverage_probe.csv` (`captured_at_utc,total_rows,delhi_rows,delhi_markets` — the
+  Delhi count is independent of alias resolution, so it is the real signal).
+- **Logs:** `logs/capture.log`, `logs/capture.err.log`.
+
+| Task | Command |
+|---|---|
+| Run one capture now | `bash scripts/daily_capture.sh` |
+| See capture history | `uv run vervana ingest history` |
+| See the Delhi probe timeline | `cat data/coverage_probe.csv` |
+| Is the agent loaded? | `launchctl list \| grep vervana` |
+| **Stop the daily capture** | `launchctl unload -w ~/Library/LaunchAgents/in.vervana.dailycapture.plist` |
+| Re-enable it | `launchctl load -w ~/Library/LaunchAgents/in.vervana.dailycapture.plist` |
+| Remove it entirely | unload (above), then `rm ~/Library/LaunchAgents/in.vervana.dailycapture.plist` |
+
+**Reading the result:** once `data/coverage_probe.csv` has a week+ of rows, if `delhi_rows`
+is consistently 0 at all three times, Agmarknet does not carry Delhi same-day (a real
+coverage/timeliness gap — but also means we cannot source Delhi from Agmarknet). If
+`delhi_rows` jumps up only at the 20:00 capture, that is a *timing* effect (Delhi reports
+late in the day). Either outcome resolves R5; record it in the R5 code tag and M2-done.
+
 ## Everyday commands
 
 | Task | Command |
