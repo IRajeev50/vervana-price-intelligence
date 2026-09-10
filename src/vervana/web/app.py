@@ -33,6 +33,10 @@ TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 app = FastAPI(title="Vervana — Price Intelligence")
 
+from vervana.web.api import router as api_v1_router  # noqa: E402
+
+app.include_router(api_v1_router)
+
 
 def _paise_to_rupee(paise: int | None) -> str:
     return "—" if paise is None else f"₹{paise / 100:,.2f}"
@@ -195,6 +199,54 @@ def coverage(request: Request):
             )
     return TEMPLATES.TemplateResponse(
         request, "coverage.html", _ctx(request, reports=reports, probe=_read_probe()[-14:])
+    )
+
+
+@app.get("/benchmark", response_class=HTMLResponse)
+def benchmark_page(request: Request, commodity: str = "Onion"):
+    from vervana.db.base import SourceClass
+
+    with session_scope() as s:
+        commodities = [
+            c
+            for (c,) in s.execute(
+                select(Commodity.canonical_name)
+                .join(PriceObservation, PriceObservation.commodity_id == Commodity.id)
+                .where(PriceObservation.source_class == SourceClass.executed_summary)
+                .distinct()
+                .order_by(Commodity.canonical_name)
+            )
+        ]
+        rows = []
+        c = s.scalar(select(Commodity).where(Commodity.canonical_name == commodity))
+        if c is not None:
+            seen = set()
+            for o, mname in s.execute(
+                select(PriceObservation, Market.canonical_name)
+                .join(Market, Market.id == PriceObservation.market_id)
+                .where(
+                    PriceObservation.commodity_id == c.id,
+                    PriceObservation.source_class == SourceClass.executed_summary,
+                    PriceObservation.canonical_price_paise_per_kg.is_not(None),
+                )
+                .order_by(PriceObservation.observed_at.desc())
+            ):
+                if mname in seen:
+                    continue
+                seen.add(mname)
+                rows.append(
+                    {
+                        "market": mname,
+                        "rupees": f"{o.canonical_price_paise_per_kg / 100:,.2f}",
+                        "value": o.canonical_price_paise_per_kg,
+                        "id": o.id,
+                    }
+                )
+            rows.sort(key=lambda r: r["value"])
+    return TEMPLATES.TemplateResponse(
+        request,
+        "benchmark.html",
+        _ctx(request, rows=rows, commodities=commodities, commodity=commodity),
     )
 
 

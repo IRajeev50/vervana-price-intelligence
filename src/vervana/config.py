@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     # connector's run is a logged no-op — nothing else breaks (Part 4).
     disabled_connectors: str = ""
 
+    # Public API (M8): comma-separated valid API keys, and a per-key rate limit.
+    # A local default key keeps dev usable; production sets real keys via env.
+    public_api_keys: str = "demo-key"
+    public_api_rate_per_min: int = 60
+
     # --- Datastore ---
     # Defaults to a local SQLite file so nothing is required to import/run in dev
     # and tests. Production sets VERVANA_DATABASE_URL to the Postgres DSN.

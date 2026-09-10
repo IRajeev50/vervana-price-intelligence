@@ -2,7 +2,7 @@
 
 > **Generated file — do not hand-edit.** Produced by `scripts/gen_risk_register.py` (run via `make risks`) from `scripts/risks_seed.yaml` (definitions) and a grep of the codebase for `RISK[<ID>]:` tags (live occurrences). Edit the seed or the code, then regenerate.
 
-**Summary:** 13 risks declared · 9 have live code tags · 4 not yet reached in code · 9 tag occurrences total.
+**Summary:** 13 risks declared · 10 have live code tags · 3 not yet reached in code · 10 tag occurrences total.
 
 ## 1. Declared risks (definitions)
 
@@ -19,7 +19,7 @@
 | `R9-NOT-IP` | The dataset is proprietary IP. | 1 | PENDING |
 | `R10-QCOMM-SOURCING` | Buying quick-commerce feeds from data vendors is compliant. | 1 | PENDING |
 | `R11-RECORDER-CONFLICT` | Commission agents can be paid to report prices reliably. | 1 | PENDING |
-| `R12-RECORDER-ECONOMICS` | The platform scales like software. | 0 | — not yet reached in code — |
+| `R12-RECORDER-ECONOMICS` | The platform scales like software. | 1 | PENDING |
 | `R13-RANGE-MIDPOINT` | The midpoint of a quoted range is the representative price for modelling and deviation. | 1 | PENDING |
 
 ## 2. Live code tags (grepped from source)
@@ -28,6 +28,7 @@
 |---|---|---|---|
 | `R10-QCOMM-SOURCING` | `src/vervana/connectors/quickcommerce.py:51` | A "vendor feed" of quick-commerce prices is not a | PENDING |
 | `R11-RECORDER-CONFLICT` | `src/vervana/models/observer.py:23` | A paid recorder who holds positions in the commodities | PENDING |
+| `R12-RECORDER-ECONOMICS` | `src/vervana/economics.py:44` | The platform is assumed to scale like software, but | PENDING |
 | `R13-RANGE-MIDPOINT` | `src/vervana/forecast/series.py:26` | The modelled series uses `canonical_price_paise_per_kg`, | PENDING |
 | `R2-BEACHHEAD` | `src/vervana/digest.py:28` | This digest is deliberately shaped for HoReCa buyers, not mandi | RESOLVED — persona set to HoReCa + quick-commerce (2026-09-10, founder). |
 | `R4-WEAK-GROUND-TRUTH` | `src/vervana/connectors/agmarknet.py:228` | We record Agmarknet as `executed_summary` — a | PENDING |

@@ -250,6 +250,47 @@ def _read_csv(path: Path) -> list[dict[str, str]]:
         return list(csv.DictReader(fh))
 
 
+def sync_mandis(session: Session, path: Path) -> dict:
+    """Add any mandis from the config file that aren't in the registry yet.
+
+    Adding a mandi is a CONFIG change (edit `data/config/mandis.csv`), not a code change
+    (Part 6 / M8). Returns counts and the total observer headcount for the R12 estimate.
+    """
+    added = 0
+    total_observers = 0
+    n_mandis = 0
+    for row in _read_csv(path):
+        name = row["name"].strip()
+        if not name:
+            continue
+        n_mandis += 1
+        total_observers += int(row.get("observers") or 0)
+        existing = session.scalar(select(Market).where(Market.canonical_name == name))
+        if existing is not None:
+            continue
+        m = Market(
+            canonical_name=name,
+            apmc_name=row.get("apmc_name") or None,
+            city=row.get("city") or None,
+            state=row.get("state") or None,
+        )
+        session.add(m)
+        session.flush()
+        add_alias(
+            session,
+            alias_text=name,
+            alias_language="en",
+            alias_source_type=AliasSourceType.agmarknet_official,
+            canonical_type=CanonicalType.market,
+            canonical_id=m.id,
+            created_by="config",
+            auto_verify=True,
+        )
+        added += 1
+    session.flush()
+    return {"added": added, "n_mandis": n_mandis, "total_observers": total_observers}
+
+
 def bootstrap_from_agmarknet_records(session: Session, records: list[dict]) -> dict[str, int]:
     """Create commodities/markets (+ verified agmarknet_official aliases) from a live
     Agmarknet snapshot.

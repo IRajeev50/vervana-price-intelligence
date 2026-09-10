@@ -88,6 +88,25 @@ def registry_seed() -> None:
         typer.echo(f"{k:12} {v}")
 
 
+@registry_app.command("sync-mandis")
+def registry_sync_mandis(path: Path = REPO_ROOT / "data" / "config" / "mandis.csv") -> None:
+    """Add mandis from the config file (adding a mandi is a config change, not code).
+
+    Emits the R12 observer-cost estimate for the configured headcount.
+    """
+    from vervana.db.engine import session_scope
+    from vervana.economics import estimate_observer_cost
+    from vervana.repository.registry import sync_mandis
+
+    with session_scope() as session:
+        res = sync_mandis(session, path)
+    typer.echo(f"mandis in config: {res['n_mandis']} · newly added: {res['added']}")
+    est = estimate_observer_cost(res["n_mandis"], observers_per_mandi=1)
+    # Use the configured total observer headcount for a truer estimate.
+    est_real = estimate_observer_cost(1, observers_per_mandi=res["total_observers"] or 0)
+    typer.echo(est_real.as_lines() if res["total_observers"] else est.as_lines())
+
+
 @registry_app.command("bootstrap")
 def registry_bootstrap(path: Path) -> None:
     """Create commodities/markets from a live Agmarknet snapshot's official names."""
@@ -382,6 +401,68 @@ def digest(commodities: str = "") -> None:
     basket = [c.strip() for c in commodities.split(",") if c.strip()] or None
     with session_scope() as session:
         typer.echo(build_digest(session, basket))
+
+
+@app.command()
+def export(out: Path, commodity: str = "", market: str = "") -> None:
+    """Export price history to a CSV file."""
+    import csv as _csv
+
+    from sqlalchemy import select
+
+    from vervana.db.engine import session_scope
+    from vervana.models.entities import Commodity, Market
+    from vervana.models.observations import PriceObservation
+
+    with session_scope() as session, Path(out).open("w", newline="", encoding="utf-8") as fh:
+        w = _csv.writer(fh)
+        w.writerow(
+            [
+                "id",
+                "commodity",
+                "market",
+                "source_class",
+                "canonical_rupees_per_kg",
+                "price_low_paise",
+                "price_high_paise",
+                "unit_raw",
+                "observed_at",
+                "source_url",
+            ]
+        )
+        stmt = (
+            select(PriceObservation, Commodity.canonical_name, Market.canonical_name)
+            .join(Commodity, Commodity.id == PriceObservation.commodity_id)
+            .join(Market, Market.id == PriceObservation.market_id)
+            .order_by(PriceObservation.observed_at)
+        )
+        if commodity:
+            stmt = stmt.where(Commodity.canonical_name == commodity)
+        if market:
+            stmt = stmt.where(Market.canonical_name == market)
+        n = 0
+        for o, cname, mname in session.execute(stmt):
+            canon = (
+                ""
+                if o.canonical_price_paise_per_kg is None
+                else o.canonical_price_paise_per_kg / 100
+            )
+            w.writerow(
+                [
+                    o.id,
+                    cname,
+                    mname,
+                    o.source_class.value,
+                    canon,
+                    o.price_low_paise,
+                    o.price_high_paise,
+                    o.unit_raw,
+                    o.observed_at.isoformat(),
+                    o.source_url,
+                ]
+            )
+            n += 1
+    typer.echo(f"exported {n} rows to {out}")
 
 
 @app.command()
