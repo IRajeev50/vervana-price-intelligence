@@ -52,6 +52,33 @@ def test_map_fields_missing_required_fails_loudly():
         map_fields({"market": "Azadpur", "commodity": "Potato"})  # no prices/date
 
 
+def test_modal_outside_range_is_accepted_without_point(seeded: Session):
+    # Real Agmarknet data sometimes reports a modal outside [min, max]. We must NOT crash
+    # (ck_point_within_range) — the row is kept with the range but no asserted point price.
+    from sqlalchemy import select
+
+    rec = {
+        "state": "Delhi",
+        "district": "Delhi",
+        "market": "Azadpur",
+        "commodity": "Potato",
+        "variety": "Local",
+        "grade": "FAQ",
+        "arrival_date": "10/09/2026",
+        "min_price": "1500",
+        "max_price": "2000",
+        "modal_price": "1000",  # modal < min!
+    }
+    result = AgmarknetConnector().ingest(seeded, [rec], mode="test")
+    assert result.accepted == 1  # accepted, not crashed
+    obs = seeded.scalars(select(PriceObservation)).all()
+    assert len(obs) == 1
+    assert obs[0].price_point_paise is None  # the out-of-range modal is not asserted
+    assert obs[0].price_low_paise == 150000 and obs[0].price_high_paise == 200000
+    # canonical falls back to the midpoint (1750/quintal -> 17.5/kg -> 1750 paise/kg)
+    assert obs[0].canonical_price_paise_per_kg == 1750
+
+
 def test_ingest_accepts_good_rejects_bad(seeded: Session):
     result = AgmarknetConnector().ingest(seeded, _records(), mode="test")
     assert result.rows_in == 8

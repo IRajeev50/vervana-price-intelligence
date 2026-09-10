@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+from sqlalchemy.exc import IntegrityError
 
 from vervana.config import Settings, get_settings
 from vervana.connectors.base import Connector, IngestResult
@@ -214,6 +215,12 @@ class AgmarknetConnector(Connector):
             if low > high:
                 result.reject("range_disorder", record)
                 continue
+            # Agmarknet sometimes reports a modal OUTSIDE its own [min, max] (a source data
+            # error). We do not assert a point we can't trust: drop it (the range still
+            # stands, canonical falls back to the midpoint). Flag, never silently correct.
+            modal_out_of_range = modal is not None and not (low <= modal <= high)
+            if modal_out_of_range:
+                modal = None
 
             conv = lookup_kg_equivalent(session, unit_raw="Quintal", commodity_id=commodity_id)
             canonical = None
@@ -233,23 +240,30 @@ class AgmarknetConnector(Connector):
             # treat this source_class as an authoritative price.
             # Evidence: docs/RISK_REGISTER.md#r4-weak-ground-truth
             # Verdict: PENDING
-            insert_observation(
-                session,
-                commodity_id=commodity_id,
-                market_id=market_id,
-                source_class=SourceClass.executed_summary,
-                price_low_paise=low,
-                price_high_paise=high,
-                price_point_paise=modal,
-                unit_raw="Quintal",
-                canonical_price_paise_per_kg=canonical,
-                unit_kg_equivalent=kg_eq,
-                unit_conversion_confidence=conf,
-                source_url=BASE_URL,
-                raw_quote=json.dumps(record, ensure_ascii=False),
-                observed_at=_parse_date(fields["arrival_date"]),
-                time_basis=TimeBasis.daily_summary,
-            )
+            # A per-row savepoint isolates any unexpected DB constraint error to this row,
+            # so one bad row can never poison the whole batch.
+            try:
+                with session.begin_nested():
+                    insert_observation(
+                        session,
+                        commodity_id=commodity_id,
+                        market_id=market_id,
+                        source_class=SourceClass.executed_summary,
+                        price_low_paise=low,
+                        price_high_paise=high,
+                        price_point_paise=modal,
+                        unit_raw="Quintal",
+                        canonical_price_paise_per_kg=canonical,
+                        unit_kg_equivalent=kg_eq,
+                        unit_conversion_confidence=conf,
+                        source_url=BASE_URL,
+                        raw_quote=json.dumps(record, ensure_ascii=False),
+                        observed_at=_parse_date(fields["arrival_date"]),
+                        time_basis=TimeBasis.daily_summary,
+                    )
+            except IntegrityError as exc:
+                result.reject(f"db_constraint: {exc.orig.__class__.__name__}", record)
+                continue
             result.accept()
         return result
 

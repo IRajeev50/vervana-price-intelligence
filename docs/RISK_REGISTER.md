@@ -34,7 +34,7 @@
 | `R2-BEACHHEAD` | `src/vervana/digest.py:28` | This digest is deliberately shaped for HoReCa buyers, not mandi | RESOLVED — persona set to HoReCa + quick-commerce (2026-09-10, founder). |
 | `R3-VIDEO-PROVENANCE` | `src/vervana/connectors/transcript.py:98` | These are YouTube-quoted ranges treated as prices. | PENDING |
 | `R4-WEAK-GROUND-TRUTH` | `src/vervana/analytics/groundtruth.py:181` | The reference MUST be trader invoices, never Agmarknet — | PENDING — no trader invoices supplied yet. |
-| `R4-WEAK-GROUND-TRUTH` | `src/vervana/connectors/agmarknet.py:228` | We record Agmarknet as `executed_summary` — a | PENDING |
+| `R4-WEAK-GROUND-TRUTH` | `src/vervana/connectors/agmarknet.py:235` | We record Agmarknet as `executed_summary` — a | PENDING |
 | `R5-COVERAGE-EDGE` | `src/vervana/analytics/coverage.py:69` | The entire product edge assumes Agmarknet's Delhi coverage | PENDING — PRELIMINARY LIVE 2026-09-10 09:30 IST: the national daily snapshot |
 | `R6-MOAT-MODEL-GAP` | `src/vervana/forecast/models.py:64` | The corpus is pitched as the moat, yet the model trains on | PENDING — video-feature contribution = 0% (no video features exist yet) |
 | `R7-FORECAST-BAR` | `src/vervana/forecast/models.py:56` | This assumes gradient boosting can beat the naive baselines on | PENDING (no real multi-day history captured yet; see M4-done) |
