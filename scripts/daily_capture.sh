@@ -11,7 +11,10 @@
 # agmarknet-file`. On a normal host `vervana ingest agmarknet` (httpx) works too.
 set -euo pipefail
 
-PROJECT_DIR="/Users/rajeevsingh.1/Mandi bhav"
+# Repo root is derived from this script's location, so the script works wherever the
+# repo is cloned (it previously hardcoded one Mac's path and broke on any other setup).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 RESOURCE="9ef84268-d588-465a-a308-a864a43d0070"
 cd "$PROJECT_DIR"
 export PATH="$HOME/.local/bin:$PATH"
@@ -30,7 +33,9 @@ offset=0
 echo '{"records":[' > "$COMBINED"
 first=1
 for _ in $(seq 1 20); do
-  page=$(curl -sS -m 60 "https://api.data.gov.in/resource/${RESOURCE}?api-key=${KEY}&format=json&limit=1000&offset=${offset}")
+  # data.gov.in is often slow: 120s per-page ceiling + bounded retries on transient
+  # errors, so one slow response does not kill the whole capture.
+  page=$(curl -sS -m 120 --retry 4 --retry-delay 5 "https://api.data.gov.in/resource/${RESOURCE}?api-key=${KEY}&format=json&limit=1000&offset=${offset}")
   n=$(printf '%s' "$page" | python3 -c "import sys,json; print(len(json.load(sys.stdin).get('records',[])))")
   if [ "$n" -eq 0 ]; then break; fi
   rows=$(printf '%s' "$page" | python3 -c "import sys,json; print(','.join(json.dumps(r,ensure_ascii=False) for r in json.load(sys.stdin)['records']))")

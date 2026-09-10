@@ -7,8 +7,12 @@ rows get a real canonical ₹/kg.
 
 Robustness the spec calls for:
   * API key from env, never committed.
-  * Pagination (1000-record cap), exponential backoff, 429 that pauses rather than
-    hot-retries, 400 raised loudly (bad key/params/schema).
+  * Pagination (1000-record cap), bounded retries with exponential backoff, 429 that
+    pauses rather than hot-retries, 400 raised loudly (bad key/params/schema).
+  * data.gov.in regularly takes >30s to answer a page, so read timeouts and other
+    transport errors are RETRIED (bounded, with backoff) instead of killing the run on
+    the first slow response. Timeout/retry budget is configurable via Settings
+    (VERVANA_AGMARKNET_* env vars).
   * Raw payload stored before parsing.
   * Field names are NOT standardised on data.gov.in, so mapping is case-insensitive over
     candidate names and FAILS LOUDLY on a missing required field.
@@ -31,6 +35,7 @@ from vervana.config import Settings, get_settings
 from vervana.connectors.base import Connector, IngestResult
 from vervana.db.base import CanonicalType, SourceClass, TimeBasis
 from vervana.logging import get_logger
+from vervana.models.ingest import IngestRun
 from vervana.money import rupees_to_paise
 from vervana.repository.prices import insert_observation
 from vervana.repository.registry import resolve_by_name
@@ -67,6 +72,14 @@ class SchemaError(ValueError):
 
 class MissingApiKeyError(RuntimeError):
     """Raised when a live fetch is attempted without VERVANA_DATA_GOV_IN_API_KEY."""
+
+
+class FetchError(RuntimeError):
+    """Raised when a page cannot be fetched within the bounded retry budget.
+
+    The message is user-facing (the CLI prints it), so it names the cause, the
+    configured budget, and the env vars that tune it.
+    """
 
 
 def _lower_keys(record: dict) -> dict:
@@ -125,8 +138,9 @@ class AgmarknetConnector(Connector):
         filters: dict[str, str] | None = None,
         max_records: int = PAGE_CAP,
         settings: Settings | None = None,
-        max_retries: int = 5,
-        backoff_base: float = 1.0,
+        max_retries: int | None = None,
+        backoff_base: float | None = None,
+        timeout_seconds: float | None = None,
         sleep=time.sleep,
     ) -> list[dict]:
         settings = settings or get_settings()
@@ -134,10 +148,16 @@ class AgmarknetConnector(Connector):
             raise MissingApiKeyError(
                 "VERVANA_DATA_GOV_IN_API_KEY is not set; cannot fetch live Agmarknet data."
             )
+        # Network budget: Settings-backed, overridable per-call (tests, scripts).
+        # data.gov.in is often slow (routinely >30s/page), so the default read timeout
+        # is generous and transport failures are retried rather than fatal.
+        retries = settings.agmarknet_max_retries if max_retries is None else max_retries
+        backoff = settings.agmarknet_backoff_base_seconds if backoff_base is None else backoff_base
+        timeout = settings.agmarknet_timeout_seconds if timeout_seconds is None else timeout_seconds
 
         records: list[dict] = []
         offset = 0
-        with httpx.Client(timeout=30.0) as client:
+        with httpx.Client(timeout=httpx.Timeout(timeout, connect=15.0)) as client:
             while len(records) < max_records:
                 limit = min(PAGE_CAP, max_records - len(records))
                 params = {
@@ -149,7 +169,7 @@ class AgmarknetConnector(Connector):
                 for k, v in (filters or {}).items():
                     params[f"filters[{k}]"] = v
 
-                page = self._get_page(client, params, max_retries, backoff_base, sleep)
+                page = self._get_page(client, params, retries, backoff, timeout, sleep)
                 batch = page.get("records", [])
                 if not batch:
                     break
@@ -159,11 +179,37 @@ class AgmarknetConnector(Connector):
                     break
         return records
 
-    def _get_page(self, client, params, max_retries, backoff_base, sleep) -> dict:
+    def _get_page(self, client, params, max_retries, backoff_base, timeout, sleep) -> dict:
+        """Fetch one page, retrying what is retryable within a bounded budget.
+
+        Retryable: read/connect timeouts, other transport errors, 429, 5xx, and a 200
+        whose body is not JSON (data.gov.in's WAF sometimes answers an HTML error page
+        with a 200). NOT retryable: 4xx like 400/401/403 — a bad key or bad params will
+        fail identically on every retry, so those raise immediately.
+        """
+        last_error: str | None = None
         for attempt in range(max_retries):
-            resp = client.get(BASE_URL, params=params)
+            wait = min(backoff_base * (2**attempt), 60.0)
+            try:
+                resp = client.get(BASE_URL, params=params)
+            except httpx.TimeoutException as exc:
+                last_error = f"{type(exc).__name__} after {timeout:g}s"
+                log.warning("agmarknet_timeout", attempt=attempt + 1, wait_s=wait)
+                sleep(wait)
+                continue
+            except httpx.TransportError as exc:
+                last_error = f"{type(exc).__name__}: {exc}"
+                log.warning("agmarknet_transport_error", attempt=attempt + 1, wait_s=wait)
+                sleep(wait)
+                continue
             if resp.status_code == 200:
-                return resp.json()
+                try:
+                    return resp.json()
+                except ValueError:
+                    last_error = "200 with non-JSON body (likely a WAF/proxy error page)"
+                    log.warning("agmarknet_non_json_200", attempt=attempt + 1, wait_s=wait)
+                    sleep(wait)
+                    continue
             if resp.status_code == 429:
                 # Pause rather than retry hot.
                 wait = backoff_base * (2 ** (attempt + 2))
@@ -171,13 +217,23 @@ class AgmarknetConnector(Connector):
                 sleep(wait)
                 continue
             if 500 <= resp.status_code < 600:
-                wait = backoff_base * (2**attempt)
-                log.warning("agmarknet_server_error", status=resp.status_code, wait_s=wait)
+                log.warning(
+                    "agmarknet_server_error",
+                    status=resp.status_code,
+                    attempt=attempt + 1,
+                    wait_s=wait,
+                )
                 sleep(wait)
                 continue
             # 400/401/403: bad key/params/schema — do not retry, fail loudly.
             resp.raise_for_status()
-        raise httpx.HTTPError(f"exhausted {max_retries} retries fetching Agmarknet page")
+        raise FetchError(
+            f"data.gov.in did not answer after {max_retries} attempts "
+            f"(last error: {last_error or 'unknown'}). The service is often slow; "
+            f"retry in a few minutes, or raise the budget via "
+            f"VERVANA_AGMARKNET_TIMEOUT_SECONDS (now {timeout:g}s) and "
+            f"VERVANA_AGMARKNET_MAX_RETRIES (now {max_retries}) in .env."
+        )
 
     # --- parse/emit ------------------------------------------------------------
     def ingest(self, session, records: list[dict], *, mode: str = "daily") -> IngestResult:
@@ -275,8 +331,6 @@ class AgmarknetConnector(Connector):
         every capture — even one that returns zero Delhi rows — leaves a dated run row
         that becomes the coverage history.
         """
-        from vervana.models.ingest import IngestRun
-
         run = IngestRun(
             connector=self.name,
             mode=mode,
@@ -298,8 +352,6 @@ class AgmarknetConnector(Connector):
 
     def run(self, session, *, mode: str = "daily", **fetch_params):
         """Fetch -> archive raw -> ingest -> record ingest_run. Failure leaves no partial data."""
-        from vervana.models.ingest import IngestRun
-
         run = IngestRun(connector=self.name, mode=mode, status="running", started_at=now_utc())
         session.add(run)
         session.flush()
@@ -321,6 +373,26 @@ class AgmarknetConnector(Connector):
             run.finished_at = now_utc()
             session.flush()
             raise
+
+    def record_failure(self, session, *, mode: str, exc: Exception) -> IngestRun:
+        """Record a failed run in a FRESH transaction (CLI failure path).
+
+        run() flushes its failed-run row into the caller's session and re-raises, so
+        under `session_scope` that row is rolled back with everything else. The CLI
+        catches the failure and calls this in a new session, so `vervana ingest
+        history` shows the failed capture instead of a silent gap.
+        """
+        run = IngestRun(
+            connector=self.name,
+            mode=mode,
+            status="failed",
+            started_at=now_utc(),
+            finished_at=now_utc(),
+            error=f"{type(exc).__name__}: {exc}",
+        )
+        session.add(run)
+        session.flush()
+        return run
 
     def _archive(self, records: list[dict]) -> str:
         self.raw_dir.mkdir(parents=True, exist_ok=True)

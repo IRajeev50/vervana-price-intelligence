@@ -54,6 +54,20 @@ uv run vervana registry bootstrap data/raw/agmarknet/snapshot_*.json   # learn i
 uv run vervana ingest agmarknet-file data/raw/agmarknet/snapshot_*.json # ingest prices
 ```
 
+Or fetch a single state straight from the API (also needs the key in `.env`):
+
+```bash
+uv run vervana ingest agmarknet --state Delhi --max-records 100
+uv run vervana ingest history   # every run shows here, including failures
+```
+
+data.gov.in is often slow (a page can take over a minute), so the connector uses a
+120s timeout and retries slow/failed responses a few times before giving up. A failed
+capture saves nothing but is recorded in `ingest history`; just rerun the same
+command — re-ingesting the same rows is safe (duplicates are rejected, not doubled).
+To tune the budget, set `VERVANA_AGMARKNET_TIMEOUT_SECONDS` /
+`VERVANA_AGMARKNET_MAX_RETRIES` in `.env`.
+
 To run the local database + app together (needs Docker):
 
 ```bash

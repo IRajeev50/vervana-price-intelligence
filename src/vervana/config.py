@@ -46,6 +46,15 @@ class Settings(BaseSettings):
     public_api_keys: str = "demo-key"
     public_api_rate_per_min: int = 60
 
+    # --- Agmarknet/data.gov.in network tuning (safe defaults) ---
+    # data.gov.in regularly takes >30s to answer a page, so the connector retries
+    # timeouts/transport errors with bounded exponential backoff instead of failing
+    # the run on the first slow response. Raise these locally (in .env) only if
+    # captures keep timing out.
+    agmarknet_timeout_seconds: float = 120.0
+    agmarknet_max_retries: int = 4
+    agmarknet_backoff_base_seconds: float = 2.0
+
     # --- Datastore ---
     # Defaults to a local SQLite file so nothing is required to import/run in dev
     # and tests. Production sets VERVANA_DATABASE_URL to the Postgres DSN.

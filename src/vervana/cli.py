@@ -211,10 +211,26 @@ def ingest_agmarknet(
     if not connector.enabled():
         typer.echo(f"connector '{connector.name}' is disabled via config; nothing to do")
         return
-    with session_scope() as session:
-        run, result = connector.run(
-            session, mode=mode, filters={"State": state}, max_records=max_records
+    typer.echo(
+        f"fetching live Agmarknet data (state={state}, up to {max_records} records); "
+        "data.gov.in can be slow, this may take a few minutes..."
+    )
+    try:
+        with session_scope() as session:
+            run, result = connector.run(
+                session, mode=mode, filters={"State": state}, max_records=max_records
+            )
+    except Exception as exc:
+        # The run's own session was rolled back; record the failure in a fresh
+        # transaction so `ingest history` shows it instead of a silent gap.
+        with session_scope() as session:
+            failed = connector.record_failure(session, mode=mode, exc=exc)
+        typer.echo(f"ingest_run#{failed.id} failed: {type(exc).__name__}: {exc}", err=True)
+        typer.echo(
+            "no data was saved for this run; retry the same command in a few minutes",
+            err=True,
         )
+        raise typer.Exit(1) from exc
     typer.echo(
         f"ingest_run#{run.id} {run.status}: in={result.rows_in} "
         f"accepted={result.accepted} rejected={result.rejected}"

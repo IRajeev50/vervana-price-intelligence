@@ -147,3 +147,139 @@ def test_missing_api_key_raises(monkeypatch, seeded: Session):
     settings = Settings(_env_file=None)
     with pytest.raises(MissingApiKeyError):
         AgmarknetConnector().fetch_raw(settings=settings)
+
+
+# ---------------------------------------------------------------------------
+# Network resilience: data.gov.in is slow, so timeouts/transport errors are
+# retried within a bounded budget instead of killing the run.
+# ---------------------------------------------------------------------------
+
+
+class _StubResponse:
+    def __init__(self, status_code=200, payload=None, body_raises=False):
+        self.status_code = status_code
+        self._payload = payload if payload is not None else {"records": []}
+        self._body_raises = body_raises
+
+    def json(self):
+        if self._body_raises:
+            raise ValueError("not json")
+        return self._payload
+
+    def raise_for_status(self):
+        import httpx
+
+        raise httpx.HTTPStatusError(f"status {self.status_code}", request=None, response=None)
+
+
+class _FlakyClient:
+    """Stands in for httpx.Client: plays a scripted list of outcomes per GET."""
+
+    def __init__(self, outcomes):
+        self._outcomes = list(outcomes)
+        self.calls = 0
+
+    def __call__(self, *args, **kwargs):
+        return self
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def get(self, url, params=None):
+        self.calls += 1
+        outcome = self._outcomes.pop(0)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+
+def _settings_with_key():
+    from vervana.config import Settings
+
+    return Settings(_env_file=None, data_gov_in_api_key="test-key")
+
+
+def test_fetch_retries_read_timeout_then_succeeds(monkeypatch):
+    import httpx
+
+    from vervana.connectors import agmarknet as mod
+
+    client = _FlakyClient(
+        [
+            httpx.ReadTimeout("slow server"),
+            _StubResponse(200, {"records": [{"market": "Azadpur"}]}),
+        ]
+    )
+    monkeypatch.setattr(mod.httpx, "Client", client)
+    sleeps: list[float] = []
+    records = AgmarknetConnector().fetch_raw(settings=_settings_with_key(), sleep=sleeps.append)
+    assert records == [{"market": "Azadpur"}]
+    assert client.calls == 2  # one timed-out attempt, one success
+    assert sleeps == [2.0]  # backoff_base * 2**0, from settings default
+
+
+def test_fetch_exhausts_retries_with_clear_error(monkeypatch):
+    import httpx
+
+    from vervana.connectors import agmarknet as mod
+    from vervana.connectors.agmarknet import FetchError
+
+    client = _FlakyClient([httpx.ReadTimeout("slow server")] * 4)
+    monkeypatch.setattr(mod.httpx, "Client", client)
+    sleeps: list[float] = []
+    with pytest.raises(FetchError) as excinfo:
+        AgmarknetConnector().fetch_raw(settings=_settings_with_key(), sleep=sleeps.append)
+    msg = str(excinfo.value)
+    assert "VERVANA_AGMARKNET_TIMEOUT_SECONDS" in msg
+    assert "ReadTimeout" in msg
+    assert client.calls == 4  # default VERVANA_AGMARKNET_MAX_RETRIES
+    assert sleeps == [2.0, 4.0, 8.0, 16.0]  # capped exponential backoff
+
+
+def test_fetch_retries_non_json_200(monkeypatch):
+    from vervana.connectors import agmarknet as mod
+
+    client = _FlakyClient(
+        [
+            _StubResponse(200, body_raises=True),  # WAF HTML page with a 200
+            _StubResponse(200, {"records": [{"market": "Azadpur"}]}),
+        ]
+    )
+    monkeypatch.setattr(mod.httpx, "Client", client)
+    records = AgmarknetConnector().fetch_raw(settings=_settings_with_key(), sleep=lambda s: None)
+    assert records == [{"market": "Azadpur"}]
+    assert client.calls == 2
+
+
+def test_fetch_bad_key_fails_immediately_without_retry(monkeypatch):
+    from vervana.connectors import agmarknet as mod
+
+    client = _FlakyClient([_StubResponse(403)] * 4)
+    monkeypatch.setattr(mod.httpx, "Client", client)
+    import httpx
+
+    with pytest.raises(httpx.HTTPStatusError):
+        AgmarknetConnector().fetch_raw(settings=_settings_with_key(), sleep=lambda s: None)
+    assert client.calls == 1  # 4xx is not retried
+
+
+def test_network_budget_comes_from_settings(monkeypatch):
+    from vervana.config import Settings
+
+    monkeypatch.setenv("VERVANA_AGMARKNET_TIMEOUT_SECONDS", "300")
+    monkeypatch.setenv("VERVANA_AGMARKNET_MAX_RETRIES", "6")
+    s = Settings(_env_file=None)
+    assert s.agmarknet_timeout_seconds == 300.0
+    assert s.agmarknet_max_retries == 6
+
+
+def test_record_failure_persists_failed_run(session: Session):
+    connector = AgmarknetConnector()
+    run = connector.record_failure(session, mode="daily", exc=ValueError("boom"))
+    assert run.status == "failed"
+    assert "boom" in run.error
+    failed = session.scalars(select(IngestRun).where(IngestRun.status == "failed")).all()
+    assert len(failed) == 1
