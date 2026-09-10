@@ -1,0 +1,3 @@
+commodity,market,date,price_rupees_per_kg,trader,source_ref,notes
+Potato,Azadpur,2026-09-08,16,Ram Traders,INV-1023,example row — replace with a real invoice
+Onion,Azadpur,2026-09-08,24,Ram Traders,INV-1024,example row — replace with a real invoice

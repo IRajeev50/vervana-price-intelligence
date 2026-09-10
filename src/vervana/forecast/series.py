@@ -53,9 +53,7 @@ def price_series(
     return np.array([by_day[d] for d in sorted(by_day)], dtype=float)
 
 
-def quote_midpoint_series(
-    session: Session, *, commodity_id: int, market_id: int
-) -> np.ndarray:
+def quote_midpoint_series(session: Session, *, commodity_id: int, market_id: int) -> np.ndarray:
     """Daily series from quote_indicative *range midpoints* (paise), oldest→newest.
 
     Video quotes usually have no stated unit, so canonical ₹/kg is NULL; for modelling we

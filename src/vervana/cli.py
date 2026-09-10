@@ -444,6 +444,34 @@ def forecast_status() -> None:
     typer.echo(d.reason)
 
 
+@ingest_app.command("invoices-csv")
+def ingest_invoices_csv(path: Path) -> None:
+    """Import trader invoices — the M5 ground-truth reference (upgrades the study to real)."""
+    from vervana.analytics.groundtruth import import_invoices_csv
+    from vervana.db.engine import session_scope
+
+    with session_scope() as session:
+        res = import_invoices_csv(session, path)
+    typer.echo(f"invoices added={res['added']} rejected={res['rejected']}")
+
+
+# ---------------------------------------------------------------------------
+# groundtruth (M5)
+# ---------------------------------------------------------------------------
+groundtruth_app = typer.Typer(help="Ground-truth study (M5, R3/R4).", no_args_is_help=True)
+app.add_typer(groundtruth_app, name="groundtruth")
+
+
+@groundtruth_app.command("report")
+def groundtruth_report() -> None:
+    """Run the ground-truth study (real if invoices exist, else interim video-vs-Agmarknet)."""
+    from vervana.analytics.groundtruth import format_report, run_study
+    from vervana.db.engine import session_scope
+
+    with session_scope() as session:
+        typer.echo(format_report(run_study(session)))
+
+
 @app.command()
 def digest(commodities: str = "") -> None:
     """Print the HoReCa procurement digest (wholesale vs quick-commerce retail spread)."""

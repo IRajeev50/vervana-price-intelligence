@@ -4,6 +4,7 @@ from vervana.models.context import ContextSignal
 from vervana.models.entities import Alias, Commodity, Grade, Market, Variety
 from vervana.models.forecast_log import ProspectiveForecast
 from vervana.models.ingest import IngestRun
+from vervana.models.invoice import Invoice
 from vervana.models.observations import PriceObservation
 from vervana.models.observer import Observer
 from vervana.models.retail import RetailOfferDetail
@@ -17,6 +18,7 @@ __all__ = [
     "ContextSignal",
     "Grade",
     "IngestRun",
+    "Invoice",
     "Market",
     "Observer",
     "PriceObservation",

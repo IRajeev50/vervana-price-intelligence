@@ -2,7 +2,7 @@
 
 > **Generated file — do not hand-edit.** Produced by `scripts/gen_risk_register.py` (run via `make risks`) from `scripts/risks_seed.yaml` (definitions) and a grep of the codebase for `RISK[<ID>]:` tags (live occurrences). Edit the seed or the code, then regenerate.
 
-**Summary:** 13 risks declared · 13 have live code tags · 0 not yet reached in code · 13 tag occurrences total.
+**Summary:** 13 risks declared · 13 have live code tags · 0 not yet reached in code · 14 tag occurrences total.
 
 ## 1. Declared risks (definitions)
 
@@ -11,7 +11,7 @@
 | `R1-INFO-CHANGES-BEHAVIOUR` | Giving people better price data changes their decisions. | 1 | PENDING |
 | `R2-BEACHHEAD` | Delhi mandi traders are the first customers. | 1 | RESOLVED — persona set to HoReCa + quick-commerce (2026-09-10, founder). |
 | `R3-VIDEO-PROVENANCE` | Video-quoted ranges are near-executed "aadat" prices comparable to trades. | 1 | PENDING |
-| `R4-WEAK-GROUND-TRUTH` | Agmarknet validates video quotes. | 1 | PENDING |
+| `R4-WEAK-GROUND-TRUTH` | Agmarknet validates video quotes. | 2 | PENDING; PENDING — no trader invoices supplied yet. |
 | `R5-COVERAGE-EDGE` | Agmarknet's Delhi coverage is bad enough that we beat it. | 1 | PENDING — PRELIMINARY LIVE 2026-09-10 09:30 IST: the national daily snapshot |
 | `R6-MOAT-MODEL-GAP` | The video corpus is the defensibility AND the model trains on Agmarknet history. | 1 | PENDING — video-feature contribution = 0% (no video features exist yet) |
 | `R7-FORECAST-BAR` | Gradient boosting beats naive baselines on next-day F&V prices. | 1 | PENDING (no real multi-day history captured yet; see M4-done) |
@@ -33,6 +33,7 @@
 | `R13-RANGE-MIDPOINT` | `src/vervana/forecast/series.py:26` | The modelled series uses `canonical_price_paise_per_kg`, | PENDING |
 | `R2-BEACHHEAD` | `src/vervana/digest.py:28` | This digest is deliberately shaped for HoReCa buyers, not mandi | RESOLVED — persona set to HoReCa + quick-commerce (2026-09-10, founder). |
 | `R3-VIDEO-PROVENANCE` | `src/vervana/connectors/transcript.py:98` | These are YouTube-quoted ranges treated as prices. | PENDING |
+| `R4-WEAK-GROUND-TRUTH` | `src/vervana/analytics/groundtruth.py:171` | The reference MUST be trader invoices, never Agmarknet — | PENDING — no trader invoices supplied yet. |
 | `R4-WEAK-GROUND-TRUTH` | `src/vervana/connectors/agmarknet.py:228` | We record Agmarknet as `executed_summary` — a | PENDING |
 | `R5-COVERAGE-EDGE` | `src/vervana/analytics/coverage.py:69` | The entire product edge assumes Agmarknet's Delhi coverage | PENDING — PRELIMINARY LIVE 2026-09-10 09:30 IST: the national daily snapshot |
 | `R6-MOAT-MODEL-GAP` | `src/vervana/forecast/models.py:64` | The corpus is pitched as the moat, yet the model trains on | PENDING — video-feature contribution = 0% (no video features exist yet) |
