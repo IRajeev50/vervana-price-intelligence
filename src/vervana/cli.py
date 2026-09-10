@@ -462,6 +462,16 @@ groundtruth_app = typer.Typer(help="Ground-truth study (M5, R3/R4).", no_args_is
 app.add_typer(groundtruth_app, name="groundtruth")
 
 
+@groundtruth_app.command("infer-units")
+def groundtruth_infer_units() -> None:
+    """Show the inferred per-commodity unit (kg vs quintal) for the video corpus."""
+    from vervana.analytics.unit_inference import format_units, infer_units
+    from vervana.db.engine import session_scope
+
+    with session_scope() as session:
+        typer.echo(format_units(infer_units(session)))
+
+
 @groundtruth_app.command("report")
 def groundtruth_report() -> None:
     """Run the ground-truth study (real if invoices exist, else interim video-vs-Agmarknet)."""

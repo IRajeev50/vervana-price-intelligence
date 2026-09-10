@@ -71,14 +71,19 @@ def _median_by_commodity_date(points: list[PricePoint]) -> dict[tuple[str, date]
     return {k: statistics.median(v) for k, v in grouped.items()}
 
 
-def video_points(session: Session) -> list[PricePoint]:
-    """Video quote midpoints at the Delhi markets, treated as ₹/kg (R13 assumption)."""
+def video_points(session: Session, *, apply_units: bool = True) -> list[PricePoint]:
+    """Video quote midpoints at the Delhi markets, converted to ₹/kg using the inferred
+    per-commodity unit (R13 midpoint + inferred unit). Commodities whose unit can't be
+    inferred are dropped when apply_units is True, rather than compared in the wrong unit."""
+    from vervana.analytics.unit_inference import infer_units
+
     market_ids = [
         m.id
         for m in session.scalars(select(Market).where(Market.canonical_name.in_(VIDEO_MARKETS)))
     ]
     if not market_ids:
         return []
+    units = infer_units(session) if apply_units else {}
     rows = session.scalars(
         select(PriceObservation).where(
             PriceObservation.source_class == SourceClass.quote_indicative,
@@ -88,7 +93,12 @@ def video_points(session: Session) -> list[PricePoint]:
     out = []
     for r in rows:
         c = session.get(Commodity, r.commodity_id)
-        mid = (r.price_low_paise + r.price_high_paise) / 2  # R13 midpoint; assumed ₹/kg
+        mid = (r.price_low_paise + r.price_high_paise) / 2  # R13 midpoint
+        if apply_units:
+            u = units.get(c.canonical_name)
+            if u is None or u.scale_to_kg is None:
+                continue  # unit unknown -> don't compare in the wrong unit
+            mid *= u.scale_to_kg
         out.append(PricePoint(c.canonical_name, to_ist(r.observed_at).date(), mid))
     return out
 

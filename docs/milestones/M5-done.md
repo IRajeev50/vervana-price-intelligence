@@ -48,6 +48,19 @@ This is a diagnostic the interim study surfaced — it is **not** the ground-tru
    deviation ≤ 10%, FAILS (video = sentiment, not price) if > 10%. Tests already prove both
    branches fire (`test_real_mode_r3_holds`, `test_real_mode_r3_fails`).
 
+## Improvement shipped (2026-09-10): per-commodity unit inference
+`analytics/unit_inference.py` infers, per commodity, whether the video quotes are ₹/kg or
+₹/quintal (order-of-magnitude vs Agmarknet — a unit question, not a price validation, so
+R4-safe), and applies the scale on read (observations stay immutable). Effect on the
+interim study: **overall deviation 370% → 41.5%.**
+```
+Onion/Capsicum/Garlic/Mango/Ginger → kg   (ratio ~0.5–4.7× Agmarknet)
+Potato/Tomato/Pomegranate          → UNKNOWN (ratio ~15–19×, not a clean 100× quintal;
+                                     likely per-crate/pallı — excluded, never guessed)
+```
+The honest read: some commodities are quoted per-crate, which needs a per-crate weight
+(a `unit_convention` row) or an invoice cross-check — the code refuses to invent one.
+
 ## Improving it later (your note)
 When invoices arrive we will also: (a) fix the per-commodity unit normalisation the interim
 run exposed (Potato/Tomato ₹/quintal → ₹/kg), (b) add date-matched (not just level)
