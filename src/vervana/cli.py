@@ -299,6 +299,80 @@ def coverage_report(
         typer.echo(format_report(report, is_live=live))
 
 
+@ingest_app.command("observer-csv")
+def ingest_observer_csv(path: Path) -> None:
+    """Import field-observer quotes from a CSV (each carries observer independence)."""
+    from vervana.connectors.observer import ObserverConnector
+    from vervana.db.engine import session_scope
+
+    with session_scope() as session:
+        result = ObserverConnector().import_csv(session, path)
+    typer.echo(f"in={result.rows_in} accepted={result.accepted} rejected={result.rejected}")
+    for reason, count in sorted(result.reason_counts.items(), key=lambda kv: -kv[1]):
+        typer.echo(f"  rejected [{count}]: {reason}")
+
+
+@ingest_app.command("context-csv")
+def ingest_context_csv(path: Path) -> None:
+    """Import context signals (weather/diesel/festival) from a CSV — model features."""
+    from vervana.connectors.context import ContextConnector
+    from vervana.db.engine import session_scope
+
+    with session_scope() as session:
+        result = ContextConnector().import_csv(session, path)
+    typer.echo(f"in={result.rows_in} accepted={result.accepted} rejected={result.rejected}")
+
+
+@ingest_app.command("enam")
+def ingest_enam() -> None:
+    """eNAM connector (stub — no open API yet; see OPEN_QUESTIONS #1)."""
+    from vervana.connectors.enam import EnamAccessUnresolvedError, EnamConnector
+
+    try:
+        EnamConnector().fetch_raw()
+    except EnamAccessUnresolvedError as exc:
+        typer.echo(f"eNAM unavailable: {exc}")
+
+
+# ---------------------------------------------------------------------------
+# forecast
+# ---------------------------------------------------------------------------
+forecast_app = typer.Typer(
+    help="Forecasting harness (baselines + models + kill).", no_args_is_help=True
+)
+app.add_typer(forecast_app, name="forecast")
+
+
+@forecast_app.command("demo")
+def forecast_demo(kind: str = "randomwalk") -> None:
+    """Run the harness on a synthetic series (randomwalk|seasonal) — shows the kill check."""
+    import numpy as np
+
+    from vervana.forecast import backtest_all, format_backtest, summarize_and_persist
+
+    rng = np.random.default_rng(0)
+    if kind == "seasonal":
+        t = np.arange(160)
+        series = 2000 + 300 * np.sin(2 * np.pi * t / 7) + rng.normal(0, 15, 160)
+    else:
+        series = 2000 + np.cumsum(rng.normal(0, 40, 120))
+    results = backtest_all(series, min_train=21)
+    typer.echo(format_backtest(results))
+    summary = summarize_and_persist(results)
+    typer.echo(f"\nmodel_shippable: {summary['model_shippable']}")
+    typer.echo(summary["kill_reason"])
+
+
+@forecast_app.command("status")
+def forecast_status() -> None:
+    """Show the current kill decision (what the serving layer would expose)."""
+    from vervana.forecast import load_decision
+
+    d = load_decision()
+    typer.echo(f"model_shippable: {d.model_shippable}")
+    typer.echo(d.reason)
+
+
 @app.command()
 def digest(commodities: str = "") -> None:
     """Print the HoReCa procurement digest (wholesale vs quick-commerce retail spread)."""

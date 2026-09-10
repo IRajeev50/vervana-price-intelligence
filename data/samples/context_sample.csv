@@ -1,0 +1,4 @@
+signal_type,region,date,value_numeric,value_text,source,source_url
+diesel,Delhi,2026-09-10,89.62,,manual,https://example.test/diesel
+weather,Delhi,2026-09-10,34.0,partly cloudy,manual,https://example.test/weather
+festival,Delhi,2026-09-16,,Anant Chaturdashi,manual,https://example.test/festival

@@ -35,6 +35,17 @@ lexical + phonetic, both light.
 during the daily batch. Raw payloads are archived to local disk (`data/raw/`, git-ignored),
 which counts toward the object-storage line already in the table above once deployed.
 
+**M3 adds ₹0 fixed cost** (FastAPI/uvicorn/Jinja are libraries, served from the same VPS).
+
+**M4 adds ₹0 fixed cost.** scikit-learn/statsmodels/numpy/pandas are libraries. They raise
+RAM/CPU during the nightly backtest (fits comfortably on the batch VPS); no serving-time
+cost. **No LSTM/torch** — the ceiling stays intact.
+
+**M7 adds ₹0 fixed cost.** eNAM/observer/context connectors are code. Two *variable* items,
+tracked but not incurred: **ASR** for observer voice notes (per audio-minute, + residency)
+and any metered weather/fuel API for context signals. And per **R12**, once real field
+observers are added, **observer payroll** is the dominant opex (§3 below), not this ceiling.
+
 ## 2. Variable messaging/compute (tracked, not yet incurred)
 
 | Component | Added at | Basis | Note |

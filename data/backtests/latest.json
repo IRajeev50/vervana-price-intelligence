@@ -1,0 +1,49 @@
+{
+  "made_at": "2026-09-10T05:31:00.762082+00:00",
+  "per_model": {
+    "naive": {
+      "mae_paise": 32.8,
+      "smape": 0.015,
+      "directional_accuracy": 0.0,
+      "pi_coverage": 0.8788,
+      "pnl_vs_naive_paise": 0.0,
+      "n": 99
+    },
+    "seasonal_naive": {
+      "mae_paise": 86.7,
+      "smape": 0.0406,
+      "directional_accuracy": 0.4848,
+      "pi_coverage": 0.4646,
+      "pnl_vs_naive_paise": 181.5,
+      "n": 99
+    },
+    "moving_average": {
+      "mae_paise": 53.9,
+      "smape": 0.025,
+      "directional_accuracy": 0.4949,
+      "pi_coverage": 0.6162,
+      "pnl_vs_naive_paise": 94.5,
+      "n": 99
+    },
+    "sarima": {
+      "mae_paise": 35.3,
+      "smape": 0.0163,
+      "directional_accuracy": 0.4646,
+      "pi_coverage": 0.8485,
+      "pnl_vs_naive_paise": 221.2,
+      "n": 99
+    },
+    "gradient_boosting": {
+      "mae_paise": 65.9,
+      "smape": 0.0309,
+      "directional_accuracy": 0.4949,
+      "pi_coverage": 0.6566,
+      "pnl_vs_naive_paise": 239.5,
+      "n": 99
+    }
+  },
+  "gradient_boosting_directional": 0.494949494949495,
+  "seasonal_naive_directional": 0.48484848484848486,
+  "model_shippable": false,
+  "kill_reason": "gradient_boosting directional 49.5% does NOT beat seasonal_naive 48.5% by >10% (needs >53.3%) \u2014 serving falls back to baseline + interval, labelled as such (R7)."
+}

@@ -2,7 +2,7 @@
 
 > **Generated file — do not hand-edit.** Produced by `scripts/gen_risk_register.py` (run via `make risks`) from `scripts/risks_seed.yaml` (definitions) and a grep of the codebase for `RISK[<ID>]:` tags (live occurrences). Edit the seed or the code, then regenerate.
 
-**Summary:** 13 risks declared · 5 have live code tags · 8 not yet reached in code · 5 tag occurrences total.
+**Summary:** 13 risks declared · 9 have live code tags · 4 not yet reached in code · 9 tag occurrences total.
 
 ## 1. Declared risks (definitions)
 
@@ -13,23 +13,27 @@
 | `R3-VIDEO-PROVENANCE` | Video-quoted ranges are near-executed "aadat" prices comparable to trades. | 0 | — not yet reached in code — |
 | `R4-WEAK-GROUND-TRUTH` | Agmarknet validates video quotes. | 1 | PENDING |
 | `R5-COVERAGE-EDGE` | Agmarknet's Delhi coverage is bad enough that we beat it. | 1 | PENDING — PRELIMINARY LIVE 2026-09-10 09:30 IST: the national daily snapshot |
-| `R6-MOAT-MODEL-GAP` | The video corpus is the defensibility AND the model trains on Agmarknet history. | 0 | — not yet reached in code — |
-| `R7-FORECAST-BAR` | Gradient boosting beats naive baselines on next-day F&V prices. | 0 | — not yet reached in code — |
+| `R6-MOAT-MODEL-GAP` | The video corpus is the defensibility AND the model trains on Agmarknet history. | 1 | PENDING — video-feature contribution = 0% (no video features exist yet) |
+| `R7-FORECAST-BAR` | Gradient boosting beats naive baselines on next-day F&V prices. | 1 | PENDING (no real multi-day history captured yet; see M4-done) |
 | `R8-YOUTUBE-TOS` | The corpus is both a legal risk and a defensible asset. | 0 | — not yet reached in code — |
 | `R9-NOT-IP` | The dataset is proprietary IP. | 1 | PENDING |
 | `R10-QCOMM-SOURCING` | Buying quick-commerce feeds from data vendors is compliant. | 1 | PENDING |
-| `R11-RECORDER-CONFLICT` | Commission agents can be paid to report prices reliably. | 0 | — not yet reached in code — |
+| `R11-RECORDER-CONFLICT` | Commission agents can be paid to report prices reliably. | 1 | PENDING |
 | `R12-RECORDER-ECONOMICS` | The platform scales like software. | 0 | — not yet reached in code — |
-| `R13-RANGE-MIDPOINT` | The midpoint of a quoted range is the representative price for modelling and deviation. | 0 | — not yet reached in code — |
+| `R13-RANGE-MIDPOINT` | The midpoint of a quoted range is the representative price for modelling and deviation. | 1 | PENDING |
 
 ## 2. Live code tags (grepped from source)
 
 | ID | Location | Summary | Verdict |
 |---|---|---|---|
 | `R10-QCOMM-SOURCING` | `src/vervana/connectors/quickcommerce.py:51` | A "vendor feed" of quick-commerce prices is not a | PENDING |
+| `R11-RECORDER-CONFLICT` | `src/vervana/models/observer.py:23` | A paid recorder who holds positions in the commodities | PENDING |
+| `R13-RANGE-MIDPOINT` | `src/vervana/forecast/series.py:26` | The modelled series uses `canonical_price_paise_per_kg`, | PENDING |
 | `R2-BEACHHEAD` | `src/vervana/digest.py:28` | This digest is deliberately shaped for HoReCa buyers, not mandi | RESOLVED — persona set to HoReCa + quick-commerce (2026-09-10, founder). |
 | `R4-WEAK-GROUND-TRUTH` | `src/vervana/connectors/agmarknet.py:228` | We record Agmarknet as `executed_summary` — a | PENDING |
 | `R5-COVERAGE-EDGE` | `src/vervana/analytics/coverage.py:69` | The entire product edge assumes Agmarknet's Delhi coverage | PENDING — PRELIMINARY LIVE 2026-09-10 09:30 IST: the national daily snapshot |
+| `R6-MOAT-MODEL-GAP` | `src/vervana/forecast/models.py:64` | The corpus is pitched as the moat, yet the model trains on | PENDING — video-feature contribution = 0% (no video features exist yet) |
+| `R7-FORECAST-BAR` | `src/vervana/forecast/models.py:56` | This assumes gradient boosting can beat the naive baselines on | PENDING (no real multi-day history captured yet; see M4-done) |
 | `R9-NOT-IP` | `src/vervana/models/entities.py:26` | This registry is treated as proprietary IP. Under Eastern Book | PENDING |
 
 ## 3. Evidence against each assumption

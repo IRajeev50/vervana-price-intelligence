@@ -1,0 +1,3 @@
+observer_name,commodity,market,price_low_rupees,price_high_rupees,unit_raw,source_url
+Ramesh (agent),Potato,Azadpur,14,16,kg,observer:voice-2026-09-10-01
+Ramesh (agent),Onion,Azadpur,22,25,kg,observer:voice-2026-09-10-02
