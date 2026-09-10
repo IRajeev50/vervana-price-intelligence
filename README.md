@@ -40,8 +40,10 @@ uv run vervana serve              # start the web app at http://127.0.0.1:8000
 
 Then open **http://127.0.0.1:8000**. Pages: **Dashboard** (totals + R5 status),
 **Prices** (browse/filter, every row links to its evidence), **Coverage (R5)** (the
-Delhi coverage experiment + daily probe), **Review** (approve alias matches), **Ingest**
-(capture history).
+Delhi coverage experiment + daily probe), **Intelligence** (crop portfolio +
+signal-to-impact outlooks), **Outlook calendar** (every saved outlook by the date
+it was made), **Review** (approve alias matches), **Ingest** (capture history).
+The UI runs on the design system in [`docs/UI.md`](docs/UI.md) (M10).
 
 To fill it with live national data (needs your data.gov.in key in `.env`), the daily
 capture runs automatically (see `docs/RUNBOOK.md`), or do it once by hand:

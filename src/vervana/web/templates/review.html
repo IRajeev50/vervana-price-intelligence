@@ -1,28 +1,38 @@
 {% extends "base.html" %}
 {% block title %}Review queue{% endblock %}
 {% block body %}
-<h1>Alias review queue</h1>
-<p class="sub">Automated matches are never trusted on their own. Approving records <em>you</em> as the reviewer (R9 — the editorial judgment is the asset).</p>
+<header class="page-head">
+  <div class="page-head__kicker">Operations</div>
+  <h1>Alias review queue</h1>
+  <p class="page-head__sub">Automated matches are never trusted on their own. Approving records <em>you</em> as the reviewer (R9 — the editorial judgment is the asset).</p>
+</header>
 
-<table>
-  <thead><tr><th>Alias</th><th>Resolves to</th><th>Method</th><th>Score</th><th>Action</th></tr></thead>
+<div class="table-wrap">
+<table class="data">
+  <thead><tr><th>Alias</th><th>Resolves to</th><th>Method</th><th class="num">Score</th><th>Action</th></tr></thead>
   <tbody>
   {% for i in items %}
     <tr>
-      <td><strong>{{ i.alias }}</strong></td>
+      <td class="cell-strong">{{ i.alias }}</td>
       <td>{{ i.target }}</td>
       <td>{{ i.method }}</td>
-      <td>{{ i.score }}</td>
+      <td class="num">{{ i.score }}</td>
       <td>
         <form method="post" action="/review/{{ i.id }}/approve" style="display:flex; gap:6px; margin:0">
-          <input type="text" name="reviewer" placeholder="your name" required>
-          <button type="submit">Approve</button>
+          <input class="input" type="text" name="reviewer" placeholder="your name" aria-label="Reviewer name" required>
+          <button class="btn" type="submit">Approve</button>
         </form>
       </td>
     </tr>
   {% else %}
-    <tr><td colspan="5" style="color:var(--muted)">No pending reviews. 🎉</td></tr>
+    <tr><td colspan="5">
+      <div class="empty">
+        <span class="empty__ico" aria-hidden="true">✓</span>
+        <div class="empty__title">No pending reviews. 🎉</div>
+      </div>
+    </td></tr>
   {% endfor %}
   </tbody>
 </table>
+</div>
 {% endblock %}

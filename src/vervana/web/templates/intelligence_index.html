@@ -1,21 +1,74 @@
 {% extends "base.html" %}
+{% import "_intel_macros.html" as im %}
 {% block title %}Intelligence{% endblock %}
 {% block body %}
-<h1>Agricultural intelligence</h1>
-<p class="sub">Upstream crop signals (rain, NDVI, reservoirs, acreage, arrivals, stocks, policy) joined into a supply -> price -> impact chain. Every input is labelled observed, simulated or missing; a simulated input caps confidence. The horizon is what the crop's biology supports, never more.</p>
+<header class="page-head">
+  <div class="page-head__kicker">Research</div>
+  <h1>Agricultural intelligence — crop portfolio</h1>
+  <p class="page-head__sub">Upstream crop signals (rain, NDVI, reservoirs, acreage, arrivals, stocks, policy) joined into a supply -&gt; price -&gt; impact chain. Every input is labelled observed, simulated or missing; a simulated input caps confidence. The horizon is what the crop's biology supports, never more.</p>
+</header>
 
-<table>
-  <thead><tr><th>Commodity</th><th>Honest horizon</th><th>Why (crop cycle + storage)</th><th></th></tr></thead>
-  <tbody>
-  {% for h in horizons %}
-    <tr>
-      <td><strong>{{ h.commodity }}</strong></td>
-      <td>{{ h.label }}</td>
-      <td style="color:var(--muted)">{{ h.basis }}</td>
-      <td><a class="link" href="/intelligence/{{ h.commodity }}">Outlook</a></td>
-    </tr>
+<p class="muted small" style="margin-top:-8px">
+  Track record: <a href="/intelligence/history">browse the outlook calendar</a> — every saved outlook, by the date it was actually made.
+</p>
+
+<div class="portfolio">
+  {% for c in crops %}
+  <article class="panel crop-card">
+    <div class="crop-card__head">
+      <h2 style="margin:0"><a href="/intelligence/{{ c.commodity }}">{{ c.commodity }}</a></h2>
+      {% if c.latest %}{{ im.status_pill('observed' if c.latest.verdict == 'signal (observed)' else ('simulated' if 'simulated' in c.latest.verdict else 'missing')) }}
+      {% else %}<span class="pill pill--missing">no saved analysis</span>{% endif %}
+    </div>
+    <div class="crop-card__horizon muted small">Honest horizon: <strong>{{ c.horizon_label }}</strong> · {{ c.horizon_basis }}</div>
+
+    {% if c.latest %}
+    <dl class="crop-card__grid">
+      <div><dt>Verdict</dt><dd>{{ c.latest.verdict }}</dd></div>
+      <div><dt>Price pressure</dt><dd>{{ im.dir_chip(c.latest.direction) }}</dd></div>
+      <div><dt>Confidence</dt><dd>{{ im.conf_meter(c.latest.confidence, capped=(c.latest.n_simulated > 0)) }}</dd></div>
+      <div><dt>Coverage</dt><dd class="small">{{ c.latest.n_observed }} observed · {{ c.latest.n_simulated }} simulated · {{ c.latest.n_missing }} missing</dd></div>
+      <div><dt>As of</dt><dd class="small">{{ c.latest.made_at_ist }}</dd></div>
+    </dl>
+    {% if c.latest.alerts %}
+    <div class="crop-card__alerts">
+      {% for a in c.latest.alerts %}<span class="pill pill--{{ a.tone }}">{{ a.text }}</span>{% endfor %}
+    </div>
+    {% endif %}
+    <div class="crop-card__links small">
+      <a href="/intelligence/record/{{ c.latest.id }}">Saved outlook #{{ c.latest.id }}</a> ·
+      <a href="/intelligence/{{ c.commodity }}">Current outlook</a> ·
+      <a href="/intelligence/history?commodity={{ c.commodity }}">History</a>
+    </div>
+    {% else %}
+    <div class="empty" style="padding:18px 12px">
+      <div class="empty__title">No saved outlooks yet for {{ c.commodity }}.</div>
+      <div class="empty__hint">Open the current outlook and save it to start this crop's track record. Nothing is back-filled: the calendar only ever shows what was actually recorded.</div>
+    </div>
+    <div class="crop-card__links small"><a href="/intelligence/{{ c.commodity }}">Open current outlook</a></div>
+    {% endif %}
+  </article>
   {% endfor %}
-  </tbody>
-</table>
-<p class="sub" style="margin-top:12px">CLI: <code>vervana intelligence horizons</code> · <code>vervana intelligence outlook Sugarcane</code>. Not trading advice.</p>
+</div>
+
+<section class="section" aria-labelledby="horizons-h">
+  <h2 id="horizons-h">Why the horizons differ</h2>
+  <div class="table-wrap">
+  <table class="data">
+    <thead><tr><th>Commodity</th><th>Honest horizon</th><th>Why (crop cycle + storage)</th><th><span class="visually-hidden">Outlook</span></th></tr></thead>
+    <tbody>
+    {% for h in horizons %}
+      <tr>
+        <td class="cell-strong">{{ h.commodity }}</td>
+        <td>{{ h.label }}</td>
+        <td class="cell-muted">{{ h.basis }}</td>
+        <td><a href="/intelligence/{{ h.commodity }}">Outlook</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<p class="muted small">CLI: <code>vervana intelligence horizons</code> · <code>vervana intelligence outlook Sugarcane</code>. Not trading advice.</p>
 {% endblock %}

@@ -1,24 +1,34 @@
 {% extends "base.html" %}
 {% block title %}Ingest history{% endblock %}
 {% block body %}
-<h1>Ingest history</h1>
-<p class="sub">Every capture is logged — even one that returns zero Delhi rows. This is the audit trail behind the coverage study.</p>
+<header class="page-head">
+  <div class="page-head__kicker">Operations</div>
+  <h1>Ingest history</h1>
+  <p class="page-head__sub">Every capture is logged — even one that returns zero Delhi rows. This is the audit trail behind the coverage study.</p>
+</header>
 
-<table>
-  <thead><tr><th>#</th><th>When (IST)</th><th>Mode</th><th>Status</th><th>Rows in</th><th>Accepted</th><th>Rejected</th></tr></thead>
+<div class="table-wrap">
+<table class="data">
+  <thead><tr><th class="num">#</th><th>When (IST)</th><th>Mode</th><th>Status</th><th class="num">Rows in</th><th class="num">Accepted</th><th class="num">Rejected</th></tr></thead>
   <tbody>
   {% for r in runs %}
     <tr>
-      <td>{{ r.id }}</td><td>{{ r.when }}</td><td>{{ r.mode }}</td>
-      <td><span class="pill {{ 'executed_summary' if r.status=='ok' else 'quote_indicative' }}">{{ r.status }}</span></td>
-      <td>{{ "{:,}".format(r.rows_in) }}</td>
-      <td>{{ "{:,}".format(r.accepted) }}</td>
-      <td>{{ "{:,}".format(r.rejected) }}</td>
+      <td class="num cell-muted">{{ r.id }}</td><td>{{ r.when }}</td><td>{{ r.mode }}</td>
+      <td><span class="pill {{ 'pill--ok' if r.status=='ok' else 'pill--warn' }}">{{ r.status }}</span></td>
+      <td class="num">{{ "{:,}".format(r.rows_in) }}</td>
+      <td class="num">{{ "{:,}".format(r.accepted) }}</td>
+      <td class="num">{{ "{:,}".format(r.rejected) }}</td>
     </tr>
   {% else %}
-    <tr><td colspan="7" style="color:var(--muted)">No ingest runs yet.</td></tr>
+    <tr><td colspan="7">
+      <div class="empty">
+        <span class="empty__ico" aria-hidden="true">◌</span>
+        <div class="empty__title">No ingest runs yet.</div>
+      </div>
+    </td></tr>
   {% endfor %}
   </tbody>
 </table>
-<p class="sub" style="margin-top:12px">Run a capture from the terminal: <code>bash scripts/daily_capture.sh</code></p>
+</div>
+<p class="muted small">Run a capture from the terminal: <code>bash scripts/daily_capture.sh</code></p>
 {% endblock %}

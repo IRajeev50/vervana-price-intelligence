@@ -7,12 +7,16 @@ attribution appear on every page (Part 7).
 
 from __future__ import annotations
 
+import calendar as _calendar
 import csv
-from datetime import timedelta
+import json
+from datetime import date, timedelta
 from pathlib import Path
+from types import SimpleNamespace as _NS
 
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 
@@ -36,6 +40,12 @@ app = FastAPI(title="Vervana — Price Intelligence")
 from vervana.web.api import router as api_v1_router  # noqa: E402
 
 app.include_router(api_v1_router)
+
+app.mount(
+    "/static",
+    StaticFiles(directory=str(Path(__file__).parent / "static")),
+    name="static",
+)
 
 
 def _paise_to_rupee(paise: int | None) -> str:
@@ -276,23 +286,311 @@ def forecast_page(request: Request):
     )
 
 
-@app.get("/intelligence", response_class=HTMLResponse)
-def intelligence_index(request: Request):
-    from vervana.intelligence.crops import forecast_horizon, load_profiles
+# --- Agricultural intelligence (M9 + M10: portfolio, calendar, saved outlooks) ---
+#
+# No-lookahead rule (M10): past dates are served ONLY from the append-only
+# intelligence_report store. The platform never recomputes what it "would have
+# said" on a past date - historical analysis means the actual saved record,
+# unedited. Generating an outlook is always a "now" action.
 
-    horizons = [forecast_horizon(p) for p in load_profiles().values()]
-    return TEMPLATES.TemplateResponse(
-        request, "intelligence_index.html", _ctx(request, horizons=horizons)
+
+def _record_view(rec) -> _NS:
+    """Normalise a stored report_json back into the shape intelligence.html uses."""
+    d = json.loads(rec.report_json)
+
+    def step_status(s: dict) -> str:
+        if s.get("direction") == "unknown":
+            return "insufficient evidence"
+        sts = {i.get("status") for i in s.get("inputs", [])}
+        if "simulated" in sts:
+            return "simulated"
+        if sts == {"observed"}:
+            return "observed"
+        return "derived"
+
+    steps = [
+        _NS(
+            name=s["name"],
+            finding=s["finding"],
+            direction=_NS(value=s.get("direction", "unknown")),
+            confidence=s.get("confidence", 0.0),
+            status=step_status(s),
+            missing=s.get("missing", []),
+        )
+        for s in d.get("steps", [])
+    ]
+    signals = [
+        _NS(
+            kind=g["kind"],
+            region=g.get("region", ""),
+            value_numeric=g.get("value_numeric"),
+            value_text=g.get("value_text"),
+            status=_NS(value=g.get("status", "missing")),
+            source=g.get("source", ""),
+            note=g.get("note", ""),
+        )
+        for g in d.get("signals", [])
+    ]
+    return _NS(
+        commodity=d["commodity"],
+        made_at_utc=d["made_at_utc"],
+        horizon=_NS(label=d["horizon"]["label"], basis=d["horizon"]["basis"]),
+        verdict=d["verdict"],
+        verdict_reason=d["verdict_reason"],
+        n_observed=d["n_observed"],
+        n_simulated=d["n_simulated"],
+        n_missing=d["n_missing"],
+        confidence=d["confidence"],
+        steps=steps,
+        signals=signals,
+        price_context=d.get("price_context", {}),
     )
 
 
+def _regions_for(signals) -> list[str]:
+    return sorted({g.region for g in signals if g.region and g.status.value != "missing"})
+
+
+@app.get("/intelligence", response_class=HTMLResponse)
+def intelligence_index(request: Request):
+    from vervana.intelligence.crops import forecast_horizon, load_profiles
+    from vervana.models.intelligence import IntelligenceReportRecord
+
+    profiles = load_profiles()
+    horizons = [forecast_horizon(p) for p in profiles.values()]
+    with session_scope() as s:
+        latest: dict = {}
+        for rec in s.scalars(
+            select(IntelligenceReportRecord).order_by(IntelligenceReportRecord.made_at.desc())
+        ):
+            latest.setdefault(rec.commodity, rec)
+        crops = []
+        for name, profile in profiles.items():
+            h = forecast_horizon(profile)
+            rec = latest.get(name)
+            info = None
+            if rec is not None:
+                d = json.loads(rec.report_json)
+                direction = next(
+                    (
+                        st.get("direction", "unknown")
+                        for st in d.get("steps", [])
+                        if st.get("name") == "price_pressure"
+                    ),
+                    "unknown",
+                )
+                alerts = []
+                if rec.n_simulated:
+                    alerts.append({"tone": "warn", "text": "simulated inputs cap confidence"})
+                if rec.n_missing:
+                    alerts.append({"tone": "missing", "text": f"{rec.n_missing} missing input(s)"})
+                info = {
+                    "id": rec.id,
+                    "verdict": rec.verdict,
+                    "confidence": rec.confidence,
+                    "n_observed": rec.n_observed,
+                    "n_simulated": rec.n_simulated,
+                    "n_missing": rec.n_missing,
+                    "direction": direction,
+                    "made_at_ist": format_ist(rec.made_at),
+                    "alerts": alerts,
+                }
+            crops.append(
+                {
+                    "commodity": name,
+                    "horizon_label": h.label,
+                    "horizon_basis": h.basis,
+                    "latest": info,
+                }
+            )
+    return TEMPLATES.TemplateResponse(
+        request,
+        "intelligence_index.html",
+        _ctx(request, crops=crops, horizons=horizons),
+    )
+
+
+def _month_nav(month: str) -> tuple[int, int, str, str]:
+    year, mon = int(month[:4]), int(month[5:7])
+    prev_y, prev_m = (year - 1, 12) if mon == 1 else (year, mon - 1)
+    next_y, next_m = (year + 1, 1) if mon == 12 else (year, mon + 1)
+    return prev_y, prev_m, f"{prev_y:04d}-{prev_m:02d}", f"{next_y:04d}-{next_m:02d}"
+
+
+def _history_page(request: Request, month: str, commodity: str, day: date | None):
+    from vervana.intelligence.crops import load_profiles
+    from vervana.models.intelligence import IntelligenceReportRecord
+
+    try:
+        date(int(month[:4]), int(month[5:7]), 1)
+        if len(month) != 7 or month[4] != "-":
+            raise ValueError
+    except (ValueError, IndexError):
+        month = to_ist(now_utc()).strftime("%Y-%m")
+    _, _, prev_month, next_month = _month_nav(month)
+
+    with session_scope() as s:
+        stmt = select(IntelligenceReportRecord).order_by(IntelligenceReportRecord.made_at)
+        if commodity:
+            stmt = stmt.where(IntelligenceReportRecord.commodity == commodity)
+        recs = list(s.scalars(stmt))
+
+    by_day: dict[date, list] = {}
+    for r in recs:
+        by_day.setdefault(to_ist(r.made_at).date(), []).append(r)
+
+    year, mon = int(month[:4]), int(month[5:7])
+    today = to_ist(now_utc()).date()
+    if day is None and (year, mon) == (today.year, today.month):
+        day = today
+
+    cells = []
+    for week in _calendar.monthcalendar(year, mon):
+        for dnum in week:
+            if dnum == 0:
+                cells.append({"day": None})
+            else:
+                d = date(year, mon, dnum)
+                cells.append(
+                    {
+                        "day": dnum,
+                        "iso": d.isoformat(),
+                        "count": len(by_day.get(d, [])),
+                        "is_today": d == today,
+                    }
+                )
+
+    day_records = []
+    if day is not None:
+        for r in by_day.get(day, []):
+            day_records.append(
+                {
+                    "id": r.id,
+                    "commodity": r.commodity,
+                    "made_at_ist": format_ist(r.made_at),
+                    "verdict": r.verdict,
+                    "confidence": r.confidence,
+                    "n_observed": r.n_observed,
+                    "n_simulated": r.n_simulated,
+                    "n_missing": r.n_missing,
+                }
+            )
+
+    month_label = date(year, mon, 1).strftime("%B %Y")
+    return TEMPLATES.TemplateResponse(
+        request,
+        "intelligence_history.html",
+        _ctx(
+            request,
+            month=month,
+            month_label=month_label,
+            prev_month=prev_month,
+            next_month=next_month,
+            cells=cells,
+            day=day.day if day else None,
+            day_label=day.strftime("%A, %-d %B %Y") if day else None,
+            records=day_records,
+            n_records=sum(len(v) for k, v in by_day.items() if k.month == mon and k.year == year),
+            commodities=list(load_profiles().keys()),
+            commodity=commodity,
+        ),
+    )
+
+
+@app.get("/intelligence/history", response_class=HTMLResponse)
+def intelligence_history(request: Request, month: str = "", commodity: str = ""):
+    month = month or to_ist(now_utc()).strftime("%Y-%m")
+    return _history_page(request, month, commodity, None)
+
+
+@app.get("/intelligence/history/{day}", response_class=HTMLResponse)
+def intelligence_history_day(request: Request, day: str, commodity: str = ""):
+    try:
+        d = date.fromisoformat(day)
+    except ValueError:
+        return HTMLResponse("<h1>404 — not a date (YYYY-MM-DD)</h1>", status_code=404)
+    return _history_page(request, d.strftime("%Y-%m"), commodity, d)
+
+
+@app.get("/intelligence/record/{rec_id}", response_class=HTMLResponse)
+def intelligence_record(request: Request, rec_id: int):
+    from vervana.models.intelligence import IntelligenceReportRecord
+
+    with session_scope() as s:
+        rec = s.get(IntelligenceReportRecord, rec_id)
+        if rec is None:
+            return HTMLResponse("<h1>404 — no such saved outlook</h1>", status_code=404)
+        report = _record_view(rec)
+        record = _NS(id=rec.id, made_at_ist=format_ist(rec.made_at))
+    return TEMPLATES.TemplateResponse(
+        request,
+        "intelligence.html",
+        _ctx(
+            request,
+            report=report,
+            signals=report.signals,
+            regions=_regions_for(report.signals),
+            region="",
+            stored=True,
+            record=record,
+        ),
+    )
+
+
+@app.post("/intelligence/{commodity}/save")
+def intelligence_save(commodity: str):
+    from vervana.intelligence import build_report, save_record
+
+    with session_scope() as s:
+        report = build_report(s, commodity)
+        rec_id = save_record(s, report)
+    return RedirectResponse(f"/intelligence/record/{rec_id}", status_code=303)
+
+
 @app.get("/intelligence/{commodity}", response_class=HTMLResponse)
-def intelligence_detail(request: Request, commodity: str):
+def intelligence_detail(request: Request, commodity: str, region: str = ""):
     from vervana.intelligence import build_report
 
     with session_scope() as s:
         report = build_report(s, commodity)
-    return TEMPLATES.TemplateResponse(request, "intelligence.html", _ctx(request, report=report))
+    signals = report.signals
+    if region:
+        signals = [g for g in signals if g.region == region]
+    return TEMPLATES.TemplateResponse(
+        request,
+        "intelligence.html",
+        _ctx(
+            request,
+            report=report,
+            signals=signals,
+            regions=_regions_for(report.signals),
+            region=region,
+            stored=False,
+            record=None,
+        ),
+    )
+
+
+@app.get("/api/intelligence/records/{rec_id}")
+def api_intelligence_record(rec_id: int):
+    from vervana.models.intelligence import IntelligenceReportRecord
+
+    with session_scope() as s:
+        rec = s.get(IntelligenceReportRecord, rec_id)
+        if rec is None:
+            return {"error": "not found"}
+        return {
+            "id": rec.id,
+            "commodity": rec.commodity,
+            "made_at": rec.made_at.isoformat(),
+            "horizon_label": rec.horizon_label,
+            "verdict": rec.verdict,
+            "n_observed": rec.n_observed,
+            "n_simulated": rec.n_simulated,
+            "n_missing": rec.n_missing,
+            "confidence": rec.confidence,
+            "report": json.loads(rec.report_json),
+        }
 
 
 @app.get("/review", response_class=HTMLResponse)

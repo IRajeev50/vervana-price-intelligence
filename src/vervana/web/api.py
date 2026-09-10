@@ -212,6 +212,7 @@ def export(commodity: str = "", market: str = "", _key: str = Depends(require_ap
         headers={"Content-Disposition": "attachment; filename=vervana_export.csv"},
     )
 
+
 @router.get("/intelligence/{commodity}")
 def intelligence(commodity: str, _key: str = Depends(require_api_key)):
     """Signal-to-impact outlook for a commodity (M9). Inputs carry observed /

@@ -1,0 +1,32 @@
+{% macro status_pill(status) -%}
+  {%- if status == 'observed' -%}
+    <span class="pill pill--observed">observed</span>
+  {%- elif status == 'simulated' -%}
+    <span class="pill pill--simulated">simulated</span>
+  {%- elif status == 'missing' -%}
+    <span class="pill pill--missing">missing</span>
+  {%- elif status == 'insufficient evidence' -%}
+    <span class="pill pill--missing">insufficient evidence</span>
+  {%- else -%}
+    <span class="pill pill--info">{{ status }}</span>
+  {%- endif -%}
+{% endmacro %}
+
+{% macro dir_chip(value) -%}
+  {%- if value == 'up' -%}
+    <span class="dir dir--up" title="direction: up">↑ up</span>
+  {%- elif value == 'down' -%}
+    <span class="dir dir--down" title="direction: down">↓ down</span>
+  {%- elif value == 'neutral' -%}
+    <span class="dir dir--neutral" title="direction: neutral">→ neutral</span>
+  {%- else -%}
+    <span class="dir dir--na" title="direction: unknown">— unknown</span>
+  {%- endif -%}
+{% endmacro %}
+
+{% macro conf_meter(value, capped=False) -%}
+  <span class="meter {{ 'meter--capped' if capped }}" title="confidence {{ '%.2f'|format(value) }}{{ ' (capped by simulated inputs)' if capped }}">
+    <span class="meter__track"><span class="meter__fill" style="--v:{{ [value, 0]|max }}"></span></span>
+    <span class="meter__num">{{ '%.2f'|format(value) }}</span>
+  </span>
+{% endmacro %}

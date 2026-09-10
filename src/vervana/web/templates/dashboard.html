@@ -1,31 +1,42 @@
 {% extends "base.html" %}
 {% block title %}Dashboard{% endblock %}
 {% block body %}
-<h1>Dashboard</h1>
-<p class="sub">Provenance-first price intelligence for Indian mandis. Delhi-first; every number traces to its source.</p>
+<header class="page-head">
+  <div class="page-head__kicker">Overview</div>
+  <h1>Dashboard</h1>
+  <p class="page-head__sub">Provenance-first price intelligence for Indian mandis. Delhi-first; every number traces to its source.</p>
+</header>
 
-<div class="cards">
-  <div class="card"><div class="n">{{ "{:,}".format(stats.observations) }}</div><div class="l">Price observations</div></div>
-  <div class="card"><div class="n">{{ "{:,}".format(stats.commodities) }}</div><div class="l">Commodities</div></div>
-  <div class="card"><div class="n">{{ "{:,}".format(stats.markets) }}</div><div class="l">Markets</div></div>
-  <div class="card"><div class="n">{{ stats.pending_reviews }}</div><div class="l">Pending reviews</div></div>
-  <div class="card"><div class="n">{{ delhi_today }}</div><div class="l">Delhi rows (latest snapshot)</div></div>
+<div class="stat-grid">
+  <div class="stat"><div class="stat__value">{{ "{:,}".format(stats.observations) }}</div><div class="stat__label">Price observations</div></div>
+  <div class="stat"><div class="stat__value">{{ "{:,}".format(stats.commodities) }}</div><div class="stat__label">Commodities</div></div>
+  <div class="stat"><div class="stat__value">{{ "{:,}".format(stats.markets) }}</div><div class="stat__label">Markets</div></div>
+  <div class="stat"><div class="stat__value">{{ stats.pending_reviews }}</div><div class="stat__label">Pending reviews</div></div>
+  <div class="stat"><div class="stat__value">{{ delhi_today }}</div><div class="stat__label">Delhi rows (latest snapshot)</div></div>
 </div>
 
 {% if last %}
-<div class="verdict">
-  <strong>Last ingest:</strong> {{ last.when }} — <span class="pill executed_summary">{{ last.status }}</span>
-  · {{ "{:,}".format(last.accepted) }} accepted of {{ "{:,}".format(last.rows_in) }} rows.
+<div class="callout callout--ok">
+  <span class="callout__ico" aria-hidden="true">✓</span>
+  <div class="callout__body">
+    <strong>Last ingest:</strong> {{ last.when }} — <span class="pill pill--ok">{{ last.status }}</span>
+    <span class="muted">· {{ "{:,}".format(last.accepted) }} accepted of {{ "{:,}".format(last.rows_in) }} rows.</span>
+  </div>
 </div>
 {% endif %}
 
-<div class="verdict" style="border-left-color:#b26a00">
-  <strong>R5 — coverage experiment running.</strong> The daily capture has logged
-  {{ probe_rows }} snapshot(s). Delhi is currently <strong>{{ delhi_today }}</strong> rows in
-  the latest Agmarknet snapshot. See <a class="link" href="/coverage">Coverage (R5)</a> for the
-  timeline and verdict.
+<div class="callout callout--warn">
+  <span class="callout__ico" aria-hidden="true">◔</span>
+  <div class="callout__body">
+    <strong>R5 — coverage experiment running.</strong> The daily capture has logged
+    {{ probe_rows }} snapshot(s). Delhi is currently <strong>{{ delhi_today }}</strong> rows in
+    the latest Agmarknet snapshot. See <a href="/coverage">Coverage (R5)</a> for the
+    timeline and verdict.
+  </div>
 </div>
 
-<p class="sub" style="margin-top:22px">Start here → <a class="link" href="/prices">browse prices</a>,
-each row links to its <em>evidence</em> (the exact source record it came from).</p>
+<div class="panel">
+  <p class="muted mt-0" style="margin-bottom:0">Start here → <a href="/prices">browse prices</a>,
+  each row links to its <em>evidence</em> (the exact source record it came from).</p>
+</div>
 {% endblock %}

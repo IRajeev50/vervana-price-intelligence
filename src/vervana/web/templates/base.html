@@ -1,75 +1,86 @@
+{% set path = request.url.path %}
+{% macro nav_groups() %}
+  <div class="nav-group">
+    <div class="nav-group__label">Overview</div>
+    <a class="nav-link" href="/" {{ 'aria-current="page"' if path == '/' }}>
+      <span class="nav-ico" aria-hidden="true">◧</span>Dashboard</a>
+    <a class="nav-link" href="/prices" {{ 'aria-current="page"' if path.startswith('/prices') }}>
+      <span class="nav-ico" aria-hidden="true">₹</span>Prices</a>
+    <a class="nav-link" href="/benchmark" {{ 'aria-current="page"' if path.startswith('/benchmark') }}>
+      <span class="nav-ico" aria-hidden="true">⇅</span>Benchmark</a>
+    <a class="nav-link" href="/digest" {{ 'aria-current="page"' if path.startswith('/digest') }}>
+      <span class="nav-ico" aria-hidden="true">☰</span>HoReCa digest</a>
+  </div>
+  <div class="nav-group">
+    <div class="nav-group__label">Research</div>
+    <a class="nav-link" href="/coverage" {{ 'aria-current="page"' if path.startswith('/coverage') }}>
+      <span class="nav-ico" aria-hidden="true">◎</span>Coverage (R5)</a>
+    <a class="nav-link" href="/forecast" {{ 'aria-current="page"' if path.startswith('/forecast') }}>
+      <span class="nav-ico" aria-hidden="true">↗</span>Forecast log</a>
+    <a class="nav-link" href="/intelligence" {{ 'aria-current="page"' if path == '/intelligence' or (path.startswith('/intelligence/') and not path.startswith('/intelligence/history')) }}>
+      <span class="nav-ico" aria-hidden="true">❋</span>Intelligence</a>
+    <a class="nav-link" href="/intelligence/history" {{ 'aria-current="page"' if path.startswith('/intelligence/history') }}>
+      <span class="nav-ico" aria-hidden="true">▦</span>Outlook calendar</a>
+  </div>
+  <div class="nav-group">
+    <div class="nav-group__label">Operations</div>
+    <a class="nav-link" href="/review" {{ 'aria-current="page"' if path.startswith('/review') }}>
+      <span class="nav-ico" aria-hidden="true">✓</span>Review</a>
+    <a class="nav-link" href="/ingest" {{ 'aria-current="page"' if path.startswith('/ingest') }}>
+      <span class="nav-ico" aria-hidden="true">⤓</span>Ingest</a>
+  </div>
+{% endmacro %}
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
   <title>{% block title %}Vervana{% endblock %} — Vervana</title>
-  <style>
-    :root { --ink:#1a2530; --muted:#5c6b7a; --line:#e3e8ee; --bg:#f6f8fa; --brand:#1f7a3d; --accent:#0b6bcb; }
-    * { box-sizing: border-box; }
-    body { margin:0; font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; color:var(--ink); background:var(--bg); }
-    header { background:#fff; border-bottom:1px solid var(--line); padding:0 20px; display:flex; align-items:center; gap:22px; flex-wrap:wrap; position:sticky; top:0; z-index:5; }
-    header .brand { font-weight:700; font-size:16px; color:var(--brand); padding:14px 0; }
-    header .brand small { color:var(--muted); font-weight:400; }
-    nav a { color:var(--ink); text-decoration:none; padding:16px 4px; display:inline-block; border-bottom:2px solid transparent; }
-    nav a:hover { color:var(--accent); border-bottom-color:var(--accent); }
-    main { max-width:1100px; margin:22px auto; padding:0 20px; }
-    h1 { font-size:20px; margin:0 0 4px; }
-    .sub { color:var(--muted); margin:0 0 18px; }
-    .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; margin:16px 0; }
-    .card { background:#fff; border:1px solid var(--line); border-radius:10px; padding:16px; }
-    .card .n { font-size:26px; font-weight:700; }
-    .card .l { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.03em; }
-    table { width:100%; border-collapse:collapse; background:#fff; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
-    th, td { text-align:left; padding:9px 12px; border-bottom:1px solid var(--line); }
-    th { background:#fafbfc; font-size:12px; text-transform:uppercase; letter-spacing:.03em; color:var(--muted); }
-    tr:last-child td { border-bottom:none; }
-    tr:hover td { background:#fafcff; }
-    a.link { color:var(--accent); text-decoration:none; }
-    a.link:hover { text-decoration:underline; }
-    .pill { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:600; }
-    .pill.executed_summary { background:#e7f3ea; color:#1f7a3d; }
-    .pill.quote_indicative { background:#fdf0e3; color:#b26a00; }
-    .pill.retail_offer { background:#e8eefc; color:#0b4fc0; }
-    .pill.executed_trade { background:#e3f7f5; color:#0a7a72; }
-    form.filters { display:flex; gap:10px; flex-wrap:wrap; margin:0 0 16px; }
-    select, input[type=text] { padding:7px 9px; border:1px solid var(--line); border-radius:8px; font:inherit; background:#fff; }
-    button { padding:7px 14px; border:0; border-radius:8px; background:var(--accent); color:#fff; font:inherit; font-weight:600; cursor:pointer; }
-    .verdict { background:#fff; border:1px solid var(--line); border-left:4px solid var(--brand); border-radius:8px; padding:14px 16px; margin:10px 0; }
-    .kv { display:grid; grid-template-columns:200px 1fr; gap:6px 16px; background:#fff; border:1px solid var(--line); border-radius:10px; padding:16px; }
-    .kv dt { color:var(--muted); } .kv dd { margin:0; word-break:break-word; }
-    code { background:#f0f3f6; padding:2px 5px; border-radius:5px; font-size:12px; }
-    footer { max-width:1100px; margin:30px auto; padding:16px 20px; color:var(--muted); font-size:12px; border-top:1px solid var(--line); }
-    .disclaimer { background:#fff8ec; border:1px solid #f0e0c0; border-radius:8px; padding:10px 14px; color:#7a5a1a; font-size:12px; margin-bottom:10px; }
-  </style>
+  <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
-  <header>
-    <span class="brand">Vervana <small>· mandi price intelligence</small></span>
-    <nav>
-      <a href="/">Dashboard</a>
-      <a href="/prices">Prices</a>
-      <a href="/benchmark">Benchmark</a>
-      <a href="/digest">HoReCa digest</a>
-      <a href="/coverage">Coverage (R5)</a>
-      <a href="/forecast">Forecast log</a>
-      <a href="/intelligence">Intelligence</a>
-      <a href="/review">Review</a>
-      <a href="/ingest">Ingest</a>
-    </nav>
+  <a class="skip-link" href="#main">Skip to main content</a>
+
+  <header class="topbar">
+    <a class="topbar__brand" href="/">Vervana <small>· mandi price intelligence</small></a>
+    <details class="nav-toggle">
+      <summary aria-label="Open navigation menu">Menu</summary>
+      <nav class="nav-toggle__panel" aria-label="Primary">
+        {{ nav_groups() }}
+      </nav>
+    </details>
   </header>
-  <main>
-    {% block body %}{% endblock %}
-  </main>
-  <footer>
-    <div class="disclaimer">
-      <strong>Data accuracy:</strong> Wholesale prices are sourced from Agmarknet
-      (data.gov.in). The Directorate of Marketing &amp; Inspection (DMI) does not warrant
-      the accuracy or completeness of this data. Prices shown are not trading advice.
+
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="sidebar__brand" href="/">
+        <span class="sidebar__name">Vervana</span>
+        <span class="sidebar__tag">Mandi price intelligence · provenance first</span>
+      </a>
+      <nav aria-label="Primary">
+        {{ nav_groups() }}
+      </nav>
+      <div class="sidebar__foot">Local development build · localhost only</div>
+    </aside>
+
+    <div class="content">
+      <main class="content__main" id="main">
+        {% block body %}{% endblock %}
+      </main>
+      <footer class="site-footer">
+        <div class="site-footer__inner">
+          <div class="disclaimer">
+            <strong>Data accuracy:</strong> Wholesale prices are sourced from Agmarknet
+            (data.gov.in). The Directorate of Marketing &amp; Inspection (DMI) does not warrant
+            the accuracy or completeness of this data. Prices shown are not trading advice.
+          </div>
+          Contains public sector information licensed under the
+          <strong>Government Open Data License – India (GODL-India)</strong>, sourced from
+          data.gov.in. Every price on this platform links to its original evidence.
+        </div>
+      </footer>
     </div>
-    Contains public sector information licensed under the
-    <strong>Government Open Data License – India (GODL-India)</strong>, sourced from
-    data.gov.in. Every price on this platform links to its original evidence.
-  </footer>
+  </div>
 </body>
 </html>

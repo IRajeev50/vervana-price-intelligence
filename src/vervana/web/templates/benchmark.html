@@ -1,36 +1,47 @@
 {% extends "base.html" %}
 {% block title %}B2B benchmark{% endblock %}
 {% block body %}
-<h1>B2B price benchmark</h1>
-<p class="sub">Latest wholesale ₹/kg for one commodity across every market (executed_summary only — never blended with retail). The spread is the arbitrage a B2B buyer can act on.</p>
+<header class="page-head">
+  <div class="page-head__kicker">Overview</div>
+  <h1>B2B price benchmark</h1>
+  <p class="page-head__sub">Latest wholesale ₹/kg for one commodity across every market (executed_summary only — never blended with retail). The spread is the arbitrage a B2B buyer can act on.</p>
+</header>
 
-<form class="filters" method="get">
-  <select name="commodity" onchange="this.form.submit()">
-    {% for c in commodities %}<option value="{{ c }}" {{ 'selected' if c==commodity }}>{{ c }}</option>{% endfor %}
-  </select>
-  <noscript><button type="submit">Go</button></noscript>
+<form class="filters" method="get" aria-label="Choose commodity">
+  <div class="field">
+    <label class="field__label" for="f-commodity">Commodity</label>
+    <select class="select" id="f-commodity" name="commodity" onchange="this.form.submit()">
+      {% for c in commodities %}<option value="{{ c }}" {{ 'selected' if c==commodity }}>{{ c }}</option>{% endfor %}
+    </select>
+  </div>
+  <noscript><button class="btn" type="submit">Go</button></noscript>
 </form>
 
 {% if rows %}
-<table>
-  <thead><tr><th>Rank</th><th>Market</th><th>₹/kg</th><th>vs cheapest</th><th></th></tr></thead>
+<div class="table-wrap">
+<table class="data">
+  <thead><tr><th class="num">Rank</th><th>Market</th><th class="num">₹/kg</th><th class="num">vs cheapest</th><th><span class="visually-hidden">Evidence</span></th></tr></thead>
   <tbody>
   {% set base = rows[0].value %}
   {% for r in rows %}
     <tr>
-      <td>{{ loop.index }}</td>
-      <td>{{ r.market }}</td>
-      <td><strong>₹{{ r.rupees }}</strong></td>
-      <td>{{ "+₹%.2f"|format((r.value - base)/100) if r.value>base else "—" }}</td>
-      <td><a class="link" href="/evidence/{{ r.id }}">evidence →</a></td>
+      <td class="num cell-muted">{{ loop.index }}</td>
+      <td class="cell-strong">{{ r.market }}</td>
+      <td class="num cell-strong">₹{{ r.rupees }}</td>
+      <td class="num">{{ "+₹%.2f"|format((r.value - base)/100) if r.value>base else "—" }}</td>
+      <td><a href="/evidence/{{ r.id }}">evidence →</a></td>
     </tr>
   {% endfor %}
   </tbody>
 </table>
-<p class="sub" style="margin-top:10px">Cheapest: <strong>{{ rows[0].market }}</strong> at ₹{{ rows[0].rupees }}/kg · Dearest: <strong>{{ rows[-1].market }}</strong> at ₹{{ rows[-1].rupees }}/kg.</p>
+</div>
+<p class="muted small">Cheapest: <strong>{{ rows[0].market }}</strong> at ₹{{ rows[0].rupees }}/kg · Dearest: <strong>{{ rows[-1].market }}</strong> at ₹{{ rows[-1].rupees }}/kg.</p>
 {% else %}
-<div class="verdict">No wholesale data for {{ commodity }} yet.</div>
+<div class="callout callout--info">
+  <span class="callout__ico" aria-hidden="true">ℹ</span>
+  <div class="callout__body">No wholesale data for {{ commodity }} yet.</div>
+</div>
 {% endif %}
 
-<p class="sub" style="margin-top:16px">Public API: <code>GET /api/v1/benchmark/{{ commodity }}</code> (needs an <code>X-API-Key</code> header).</p>
+<p class="muted small section">Public API: <code>GET /api/v1/benchmark/{{ commodity }}</code> (needs an <code>X-API-Key</code> header).</p>
 {% endblock %}

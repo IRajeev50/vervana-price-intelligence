@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% import "_intel_macros.html" as im %}
+{% block title %}Outlook calendar{% endblock %}
+{% block body %}
+<header class="page-head">
+  <div class="page-head__kicker">Research · track record</div>
+  <h1>Outlook calendar</h1>
+  <p class="page-head__sub">Every saved signal-to-impact outlook, by the date it was actually made. Past dates show only what was recorded then — the platform never reconstructs what it "would have said" (no lookahead).</p>
+</header>
+
+<form class="filters" method="get" action="/intelligence/history" aria-label="Filter calendar">
+  <div class="field">
+    <label class="field__label" for="f-crop">Crop</label>
+    <select class="select" id="f-crop" name="commodity" onchange="this.form.submit()">
+      <option value="">All crops</option>
+      {% for c in commodities %}<option value="{{ c }}" {{ 'selected' if c==commodity }}>{{ c }}</option>{% endfor %}
+    </select>
+  </div>
+  <input type="hidden" name="month" value="{{ month }}">
+  <noscript><button class="btn" type="submit">Apply</button></noscript>
+</form>
+
+<div class="panel panel--flush">
+  <div class="panel__head">
+    <h2 class="cal__nav"><a class="muted" href="/intelligence/history?month={{ prev_month }}&amp;commodity={{ commodity }}" aria-label="Previous month">‹</a> <span>{{ month_label }}</span> <a class="muted" href="/intelligence/history?month={{ next_month }}&amp;commodity={{ commodity }}" aria-label="Next month">›</a></h2>
+    <span class="muted">{{ n_records }} saved outlook(s) this month{{ ' · ' + commodity if commodity }}</span>
+  </div>
+  <div class="cal">
+    <div class="cal__dow">Mon</div><div class="cal__dow">Tue</div><div class="cal__dow">Wed</div>
+    <div class="cal__dow">Thu</div><div class="cal__dow">Fri</div><div class="cal__dow">Sat</div><div class="cal__dow">Sun</div>
+    {% for cell in cells %}
+      {% if cell.day is none %}
+        <div class="cal__cell cal__cell--pad" aria-hidden="true"></div>
+      {% else %}
+        <a class="cal__cell {{ 'cal__cell--today' if cell.is_today }} {{ 'cal__cell--has' if cell.count }} {{ 'cal__cell--active' if cell.day == day }}"
+           href="/intelligence/history/{{ cell.iso }}?commodity={{ commodity }}"
+           aria-label="{{ cell.iso }}: {{ cell.count }} saved outlook(s)">
+          <span class="cal__num">{{ cell.day }}</span>
+          {% if cell.count %}<span class="cal__badge">{{ cell.count }}</span>{% endif %}
+        </a>
+      {% endif %}
+    {% endfor %}
+  </div>
+</div>
+
+<section class="section" aria-labelledby="day-h">
+  {% if day_label is none %}
+  <div class="panel">
+    <div class="empty">
+      <span class="empty__ico" aria-hidden="true">▦</span>
+      <div class="empty__title">Select a day</div>
+      <div class="empty__hint">Pick a date in the calendar above to see the outlooks saved on it. Days with a badge hold saved analysis; days without one have none.</div>
+    </div>
+  </div>
+  {% else %}
+  <h2 id="day-h">{{ day_label }}</h2>
+  {% if records %}
+  <div class="table-wrap">
+  <table class="data">
+    <thead><tr><th>Crop</th><th>Recorded (IST)</th><th>Verdict</th><th class="num">Confidence</th><th>Coverage</th><th><span class="visually-hidden">Open</span></th></tr></thead>
+    <tbody>
+    {% for r in records %}
+      <tr>
+        <td class="cell-strong">{{ r.commodity }}</td>
+        <td class="cell-muted">{{ r.made_at_ist }}</td>
+        <td><span class="pill {{ 'pill--observed' if r.verdict == 'signal (observed)' else ('pill--simulated' if 'simulated' in r.verdict else 'pill--missing') }}">{{ r.verdict }}</span></td>
+        <td class="num">{{ '%.2f'|format(r.confidence) }}</td>
+        <td class="cell-muted small">{{ r.n_observed }} obs · {{ r.n_simulated }} sim · {{ r.n_missing }} miss</td>
+        <td><a href="/intelligence/record/{{ r.id }}">view saved outlook →</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div class="panel">
+    <div class="empty">
+      <span class="empty__ico" aria-hidden="true">◌</span>
+      <div class="empty__title">No outlooks were saved on {{ day_label }}.</div>
+      <div class="empty__hint">
+        {% if commodity %}No saved {{ commodity }} analysis exists for this date.{% else %}Nothing was recorded on this date.{% endif %}
+        Historical analysis means exactly this: the outlooks the platform actually published, unedited. To add to the record, open a crop and save its current outlook.
+      </div>
+    </div>
+  </div>
+  {% endif %}
+  {% endif %}
+</section>
+{% endblock %}

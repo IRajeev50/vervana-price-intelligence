@@ -1,11 +1,16 @@
 {% extends "base.html" %}
 {% block title %}HoReCa digest{% endblock %}
 {% block body %}
-<h1>HoReCa procurement digest</h1>
-<p class="sub">For HoReCa buyers &amp; quick-commerce operators. Shows today's <strong>wholesale vs retail spread</strong> — the two are never blended. This is the message content a WhatsApp broadcast would send.</p>
+<header class="page-head">
+  <div class="page-head__kicker">Overview</div>
+  <h1>HoReCa procurement digest</h1>
+  <p class="page-head__sub">For HoReCa buyers &amp; quick-commerce operators. Shows today's <strong>wholesale vs retail spread</strong> — the two are never blended. This is the message content a WhatsApp broadcast would send.</p>
+</header>
 
-<div style="background:#0b141a; color:#e9edef; border-radius:12px; padding:18px 20px; max-width:560px; white-space:pre-wrap; font:14px/1.6 -apple-system,Segoe UI,Roboto,sans-serif;">{{ digest }}</div>
+<div class="digest-frame">
+  <div class="digest-preview">{{ digest }}</div>
+</div>
 
-<p class="sub" style="margin-top:16px">Regenerate from the CLI: <code>uv run vervana digest</code> · customise the basket: <code>uv run vervana digest --commodities "Potato,Onion,Tomato"</code></p>
-<p class="sub">Sending to real WhatsApp numbers needs the Meta Business API (a data-residency decision) and is a permissioned action — the message <em>content</em> is done; wiring the channel is the remaining step.</p>
+<p class="muted small section">Regenerate from the CLI: <code>uv run vervana digest</code> · customise the basket: <code>uv run vervana digest --commodities "Potato,Onion,Tomato"</code></p>
+<p class="muted small">Sending to real WhatsApp numbers needs the Meta Business API (a data-residency decision) and is a permissioned action — the message <em>content</em> is done; wiring the channel is the remaining step.</p>
 {% endblock %}

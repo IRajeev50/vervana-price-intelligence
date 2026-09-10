@@ -84,3 +84,25 @@ consistently**, and the current gradient-boosting model does not clear the kill
 criterion on the recorded real backtest either (63.6% vs 60.0%, needs >66%).
 Decision: no model change. Baselines, models and the R7 kill gate stay exactly
 as they were. The review is repeatable: same harness, same walk-forward rule.
+
+## Track record surfaces (M10)
+
+- **Crop portfolio** (`/intelligence`): every configured crop with its honest
+  horizon plus the latest SAVED outlook's verdict, price-pressure direction,
+  confidence, observed/simulated/missing coverage, as-of IST timestamp and
+  derived alerts (e.g. "simulated inputs cap confidence", "N missing inputs").
+  A crop with no saved outlook shows an explicit empty state - the portfolio
+  never fabricates a summary.
+- **Outlook calendar** (`/intelligence/history`): saved outlooks grouped by the
+  date they were actually made (IST), with month navigation and a crop filter.
+  Day views read ONLY the append-only `intelligence_report` store. The
+  no-lookahead rule is absolute: the platform never recomputes what it "would
+  have said" on a past date; generating is always a "now" action
+  (`POST /intelligence/<commodity>/save` or the CLI `--save`).
+- **Saved outlooks** (`/intelligence/record/<id>`, JSON at
+  `/api/intelligence/records/<id>`) render the stored report unedited; the
+  observed/simulated/missing labels survive the storage round-trip.
+- **Region filter** (`/intelligence/<commodity>?region=...`) narrows the
+  displayed input-signal table only. The reasoning chain is commodity-level and
+  always uses all regions; producer-group feeds are not connected yet, and the
+  UI says so rather than implying region- or group-specific analysis exists.
