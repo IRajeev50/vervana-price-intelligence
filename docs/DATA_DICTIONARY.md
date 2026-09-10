@@ -79,5 +79,37 @@ modal`; `unit_raw = "Quintal"`; canonical ₹/kg = per-quintal price ÷ 100 (a *
 conversion, seeded in `unit_convention`). Prices are ₹/quintal at source. Unresolved
 commodity/market names are **rejected with a reason**, never guessed.
 
-## Not yet built (later milestones)
-`context_signal` (M4/M7 weather/diesel/festival), observer identity + independence (M7).
+## `retail_offer_detail` — quick-commerce pack economics (M3, Part 4.5)
+One row per `retail_offer` observation. `platform`, `sku_title`, `pack_size_raw`,
+`pack_kg`, `mrp_paise`, `selling_price_paise`, `fees_paise`. Canonical ₹/kg =
+selling_price ÷ pack_kg.
+- **Must never be used for:** blending with wholesale (the source-class guard blocks it).
+
+## `observer` — field observers (M7, R11)
+`name`, `role`, `trades_in_reported_commodities` (bool). Every observer quote carries
+`observer_id`, so conflicted reports are always filterable.
+- **Must never be used for:** treating a conflicted observer's quote as neutral.
+
+## `context_signal` — model features (M7, Part 4.6)
+`signal_type` (weather/diesel/festival), `region`, `on_date`, `value_numeric`,
+`value_text`, `source`, `source_url`. Features, **not prices**.
+- **Must never be used for:** as a price — these never enter `price_observation`.
+
+## `invoice` — trader invoices, the M5 ground-truth reference (§5.2)
+`commodity_id`, `market_id?`, `invoice_date`, `price_paise_per_kg`, `trader`,
+`source_ref`, `notes`. The executed price the ground-truth study measures every other
+source against (R4: Agmarknet is NOT this reference).
+- **Must never be used for:** being replaced by Agmarknet as the ground-truth reference.
+
+## `prospective_forecast` — the public forecast log (§5.3)
+Append-only. `commodity_id`, `market_id`, `target_date`, `made_at`, `model`,
+`point_paise`, `low_paise`, `high_paise`, and (once scored) `actual_paise`,
+`abs_error_paise`, `hit_interval`. Tomorrow's call posted today, scored on the realised
+price, published unedited.
+- **Must never be used for:** editing a posted call — the unedited record is the evidence.
+
+## Confidence (§5.4)
+`price_confidence(obs)` = source reliability × conversion confidence (list views).
+`price_confidence_full(session, obs)` adds **cross-source agreement** — how close the row
+is to its peers *of the same source class, same commodity, same day* (never across classes,
+respecting the guard). Shown on the evidence page with its basis.

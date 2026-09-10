@@ -79,12 +79,13 @@ def quote_midpoint_series(session: Session, *, commodity_id: int, market_id: int
             .order_by(PriceObservation.observed_at)
         )
     )
-    by_day: dict[str, float] = {}
-    counts: dict[str, int] = {}
+    import statistics
+
+    by_day: dict[str, list[float]] = {}
     for r in rows:
         day = to_ist(r.observed_at).date().isoformat()
         mid = (r.price_low_paise + r.price_high_paise) / 2 * scale  # inferred ₹/kg
-        # average multiple quotes on the same day (same source class — guard-safe)
-        by_day[day] = by_day.get(day, 0.0) + mid
-        counts[day] = counts.get(day, 0) + 1
-    return np.array([by_day[d] / counts[d] for d in sorted(by_day)], dtype=float)
+        # Collect all same-day quotes (same source class — guard-safe).
+        by_day.setdefault(day, []).append(mid)
+    # Daily MEDIAN, not mean — robust to intra-day transcript outliers/artifacts.
+    return np.array([statistics.median(by_day[d]) for d in sorted(by_day)], dtype=float)

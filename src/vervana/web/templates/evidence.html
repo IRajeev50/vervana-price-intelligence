@@ -12,7 +12,7 @@
   <dt>Price range</dt><dd>{{ o.low }} – {{ o.high }} <span style="color:var(--muted)">per {{ o.unit_raw }}</span></dd>
   <dt>Point price</dt><dd>{{ o.point }}</dd>
   <dt>Canonical ₹/kg</dt><dd><strong>{{ o.canonical }}</strong> (factor: {{ o.kg_equivalent }} kg/unit, conf {{ o.conversion_confidence }})</dd>
-  <dt>Confidence</dt><dd>{{ o.confidence }}</dd>
+  <dt>Confidence</dt><dd>{{ o.confidence }} <span style="color:var(--muted)">({{ o.confidence_basis }})</span></dd>
   <dt>Observed at (IST)</dt><dd>{{ o.observed_at }}</dd>
   <dt>Captured at (IST)</dt><dd>{{ o.created_at }}</dd>
   <dt>Supersedes</dt><dd>{{ o.supersedes_id or "—" }}</dd>

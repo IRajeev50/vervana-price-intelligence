@@ -154,6 +154,9 @@ def evidence(request: Request, obs_id: int):
             return HTMLResponse("<h1>404 — no such observation</h1>", status_code=404)
         commodity = s.get(Commodity, obs.commodity_id)
         market = s.get(Market, obs.market_id)
+        from vervana.confidence import price_confidence_full
+
+        full_conf, agree_basis = price_confidence_full(s, obs)
         data = {
             "id": obs.id,
             "commodity": commodity.canonical_name if commodity else "?",
@@ -167,7 +170,8 @@ def evidence(request: Request, obs_id: int):
             "unit_raw": obs.unit_raw,
             "kg_equivalent": obs.unit_kg_equivalent,
             "conversion_confidence": obs.unit_conversion_confidence,
-            "confidence": _confidence(obs),
+            "confidence": full_conf,
+            "confidence_basis": f"reliability × conversion × agreement ({agree_basis})",
             "source_url": obs.source_url,
             "raw_quote": obs.raw_quote,
             "observed_at": format_ist(obs.observed_at),
@@ -255,6 +259,21 @@ def digest_page(request: Request):
     with session_scope() as s:
         text = build_digest(s)
     return TEMPLATES.TemplateResponse(request, "digest.html", _ctx(request, digest=text))
+
+
+@app.get("/forecast", response_class=HTMLResponse)
+def forecast_page(request: Request):
+    from vervana.forecast import load_decision
+    from vervana.forecast.runner import prospective_summary
+
+    with session_scope() as s:
+        summary = prospective_summary(s)
+    decision = load_decision()
+    return TEMPLATES.TemplateResponse(
+        request,
+        "forecast.html",
+        _ctx(request, decision=decision, summary=summary),
+    )
 
 
 @app.get("/review", response_class=HTMLResponse)

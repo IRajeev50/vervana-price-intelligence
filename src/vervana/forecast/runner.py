@@ -99,6 +99,83 @@ def record_prospective(
     session.flush()
 
 
+def pick_model() -> str:
+    """The model the serving layer is allowed to use: the real model only if the kill
+    criterion passed, else the seasonal-naive baseline (per R7)."""
+    from vervana.forecast.kill import load_decision
+
+    return "gradient_boosting" if load_decision().model_shippable else "seasonal_naive"
+
+
+def run_prospective_basket(
+    session: Session, *, commodities: list[str], market_name: str = "Azadpur", min_history: int = 21
+) -> list[dict]:
+    """Record tomorrow's call for each commodity (Delhi video series, units applied).
+
+    Append-only, published unedited. The model is chosen by the kill criterion, so when
+    the model is not shippable we post the labelled baseline + interval, never a bare
+    'AI forecast'."""
+    from sqlalchemy import select
+
+    from vervana.analytics.unit_inference import infer_units
+    from vervana.forecast.series import quote_midpoint_series
+    from vervana.models.entities import Commodity, Market
+
+    model = pick_model()
+    market = session.scalar(select(Market).where(Market.canonical_name == market_name))
+    if market is None:
+        return []
+    units = infer_units(session)
+    recorded = []
+    for name in commodities:
+        c = session.scalar(select(Commodity).where(Commodity.canonical_name == name))
+        if c is None:
+            continue
+        u = units.get(name)
+        if u is None or u.scale_to_kg is None:
+            continue  # unit unknown -> can't express a ₹/kg forecast honestly; skip
+        series = quote_midpoint_series(session, commodity_id=c.id, market_id=market.id)
+        if len(series) <= min_history:
+            continue
+        record_prospective(
+            session, commodity_id=c.id, market_id=market.id, model=model, series=series
+        )
+        recorded.append({"commodity": name, "model": model, "n_history": len(series)})
+    return recorded
+
+
+def video_actual_lookup(session: Session):
+    """Build an actual-price lookup from the Delhi video series (units applied, ₹/kg paise)."""
+    import statistics
+    from collections import defaultdict
+
+    from vervana.analytics.unit_inference import infer_units
+    from vervana.db.base import SourceClass
+    from vervana.models.entities import Commodity
+    from vervana.models.observations import PriceObservation
+
+    units = infer_units(session)
+    vals: dict[tuple[int, int, object], list[float]] = defaultdict(list)
+    for r in session.scalars(
+        select(PriceObservation).where(
+            PriceObservation.source_class == SourceClass.quote_indicative
+        )
+    ):
+        cname = session.get(Commodity, r.commodity_id).canonical_name
+        u = units.get(cname)
+        scale = u.scale_to_kg if (u and u.scale_to_kg) else 1.0
+        key = (r.commodity_id, r.market_id, to_ist(r.observed_at).date())
+        vals[key].append((r.price_low_paise + r.price_high_paise) / 2 * scale)
+
+    def lookup(commodity_id: int, market_id: int, target_date) -> int | None:
+        key = (commodity_id, market_id, target_date)
+        if key not in vals:
+            return None
+        return round(statistics.median(vals[key]))  # median, robust to outliers
+
+    return lookup
+
+
 def score_due(session: Session, actual_lookup) -> int:
     """Score forecasts whose target_date has passed. `actual_lookup(commodity_id,
     market_id, target_date) -> int|None` returns the realised ₹/kg (paise). Returns the
@@ -123,3 +200,42 @@ def score_due(session: Session, actual_lookup) -> int:
         scored += 1
     session.flush()
     return scored
+
+
+def prospective_summary(session: Session, limit: int = 50) -> dict:
+    """Aggregate the public prospective log: counts, MAE, interval hit-rate + recent rows."""
+    from vervana.models.entities import Commodity, Market
+    from vervana.models.forecast_log import ProspectiveForecast
+
+    rows = list(
+        session.scalars(
+            select(ProspectiveForecast)
+            .order_by(ProspectiveForecast.target_date.desc(), ProspectiveForecast.id.desc())
+            .limit(limit)
+        )
+    )
+    scored = [r for r in rows if r.actual_paise is not None]
+    mae = round(sum(r.abs_error_paise for r in scored) / len(scored) / 100, 2) if scored else None
+    hit_rate = round(sum(1 for r in scored if r.hit_interval) / len(scored), 3) if scored else None
+    recent = []
+    for r in rows:
+        recent.append(
+            {
+                "commodity": session.get(Commodity, r.commodity_id).canonical_name,
+                "market": session.get(Market, r.market_id).canonical_name,
+                "target_date": r.target_date.isoformat(),
+                "model": r.model,
+                "point": round(r.point_paise / 100, 2),
+                "low": round(r.low_paise / 100, 2),
+                "high": round(r.high_paise / 100, 2),
+                "actual": None if r.actual_paise is None else round(r.actual_paise / 100, 2),
+                "hit": r.hit_interval,
+            }
+        )
+    return {
+        "n_calls": len(rows),
+        "n_scored": len(scored),
+        "mae_rupees": mae,
+        "interval_hit_rate": hit_rate,
+        "recent": recent,
+    }

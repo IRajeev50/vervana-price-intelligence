@@ -26,7 +26,8 @@ class Forecast:
 def _interval(point: float, history: np.ndarray, z: float = Z_90) -> Forecast:
     diffs = np.diff(history)
     sigma = float(np.std(diffs)) if diffs.size else 0.0
-    return Forecast(point=point, low=point - z * sigma, high=point + z * sigma)
+    # A price cannot be negative — clamp the lower bound at 0 (a domain constraint).
+    return Forecast(point=point, low=max(0.0, point - z * sigma), high=point + z * sigma)
 
 
 def naive(history: np.ndarray) -> Forecast:

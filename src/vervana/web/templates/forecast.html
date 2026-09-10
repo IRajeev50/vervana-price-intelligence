@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Forecast log{% endblock %}
+{% block body %}
+<h1>Public forecast track record</h1>
+<p class="sub">Tomorrow's call, posted today, scored against the realised price, published unedited. Per the research this is the only forecasting evidence a buyer will believe.</p>
+
+<div class="verdict" style="border-left-color:{{ '#1f7a3d' if decision.model_shippable else '#b26a00' }}">
+  <strong>Serving:</strong>
+  {{ 'gradient-boosting model' if decision.model_shippable else 'baseline + interval (model has not cleared the kill criterion — R7)' }}.<br>
+  <span style="color:var(--muted)">{{ decision.reason }}</span>
+</div>
+
+<div class="cards">
+  <div class="card"><div class="n">{{ summary.n_calls }}</div><div class="l">Calls posted</div></div>
+  <div class="card"><div class="n">{{ summary.n_scored }}</div><div class="l">Scored so far</div></div>
+  <div class="card"><div class="n">{{ ('₹%.2f'|format(summary.mae_rupees)) if summary.mae_rupees is not none else '—' }}</div><div class="l">MAE (₹/kg)</div></div>
+  <div class="card"><div class="n">{{ ('%.0f%%'|format(summary.interval_hit_rate*100)) if summary.interval_hit_rate is not none else '—' }}</div><div class="l">Interval hit rate</div></div>
+</div>
+
+<table>
+  <thead><tr><th>Target date</th><th>Commodity</th><th>Market</th><th>Model</th><th>Forecast (₹/kg)</th><th>Interval</th><th>Actual</th><th>In range?</th></tr></thead>
+  <tbody>
+  {% for r in summary.recent %}
+    <tr>
+      <td>{{ r.target_date }}</td><td>{{ r.commodity }}</td><td>{{ r.market }}</td>
+      <td>{{ r.model }}</td>
+      <td><strong>₹{{ '%.2f'|format(r.point) }}</strong></td>
+      <td>₹{{ '%.2f'|format(r.low) }}–{{ '%.2f'|format(r.high) }}</td>
+      <td>{{ ('₹%.2f'|format(r.actual)) if r.actual is not none else '— (pending)' }}</td>
+      <td>{{ '✓' if r.hit else ('✗' if r.actual is not none else '') }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="8" style="color:var(--muted)">No calls posted yet. Run <code>vervana forecast prospective</code>.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+<p class="sub" style="margin-top:12px">Forecasts are always an interval, never a bare point. <strong>Not trading advice.</strong> Post: <code>vervana forecast prospective</code> · score: <code>vervana forecast score</code>.</p>
+{% endblock %}

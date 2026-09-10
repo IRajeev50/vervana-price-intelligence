@@ -444,6 +444,43 @@ def forecast_status() -> None:
     typer.echo(d.reason)
 
 
+@forecast_app.command("prospective")
+def forecast_prospective(commodities: str = "", market: str = "Azadpur") -> None:
+    """Post tomorrow's call for a basket to the public prospective log (append-only)."""
+    from vervana.db.engine import session_scope
+    from vervana.digest import DEFAULT_BASKET
+    from vervana.forecast.runner import run_prospective_basket
+
+    basket = [c.strip() for c in commodities.split(",") if c.strip()] or DEFAULT_BASKET
+    with session_scope() as session:
+        recorded = run_prospective_basket(session, commodities=basket, market_name=market)
+    if not recorded:
+        typer.echo("no commodities had enough history (>21 days) to forecast")
+        return
+    for r in recorded:
+        typer.echo(f"posted call: {r['commodity']} @ {market} via {r['model']} ({r['n_history']}d)")
+
+
+@forecast_app.command("score")
+def forecast_score() -> None:
+    """Score any due prospective calls against realised prices, then show the track record."""
+    import json
+
+    from vervana.db.engine import session_scope
+    from vervana.forecast.runner import prospective_summary, score_due, video_actual_lookup
+
+    with session_scope() as session:
+        n = score_due(session, video_actual_lookup(session))
+        summary = prospective_summary(session)
+    typer.echo(f"scored {n} due call(s)")
+    typer.echo(
+        json.dumps(
+            {k: summary[k] for k in ("n_calls", "n_scored", "mae_rupees", "interval_hit_rate")},
+            indent=2,
+        )
+    )
+
+
 @ingest_app.command("invoices-csv")
 def ingest_invoices_csv(path: Path) -> None:
     """Import trader invoices — the M5 ground-truth reference (upgrades the study to real)."""
