@@ -57,15 +57,19 @@ db_app = typer.Typer(help="Database migrations.", no_args_is_help=True)
 app.add_typer(db_app, name="db")
 
 
-@db_app.command("upgrade")
-def db_upgrade(revision: str = "head") -> None:
-    """Run Alembic migrations up to REVISION (default head)."""
+def _run_migrations(revision: str = "head") -> None:
     from alembic import command
     from alembic.config import Config
 
     cfg = Config(str(REPO_ROOT / "alembic.ini"))
     cfg.set_main_option("script_location", str(REPO_ROOT / "migrations"))
     command.upgrade(cfg, revision)
+
+
+@db_app.command("upgrade")
+def db_upgrade(revision: str = "head") -> None:
+    """Run Alembic migrations up to REVISION (default head)."""
+    _run_migrations(revision)
     typer.echo(f"migrated to {revision}")
 
 
@@ -680,10 +684,82 @@ def export(out: Path, commodity: str = "", market: str = "") -> None:
     typer.echo(f"exported {n} rows to {out}")
 
 
+def _print_setup_steps(steps) -> bool:
+    """Render the shared first-run checklist; return True when everything is done."""
+    all_ok = True
+    for step in steps:
+        mark = "ok  " if step.ok else "TODO"
+        typer.echo(f"[{mark}] {step.label}: {step.detail}")
+        if not step.ok:
+            all_ok = False
+            typer.echo(f"       next: {step.action}")
+    return all_ok
+
+
+@app.command()
+def setup() -> None:
+    """First-run bootstrap (idempotent): create tables, seed the registry, report status.
+
+    Safe to re-run any number of times: migrations apply only what is missing and
+    the registry seed never duplicates existing rows. Seeding loads *reference*
+    data only (commodity/market names); live prices still come from an ingest run.
+    """
+    from vervana.db.engine import session_scope
+    from vervana.repository.registry import seed_registry
+    from vervana.setup_status import collect_setup_steps
+
+    typer.echo("1/2  migrating database ...")
+    _run_migrations()
+    typer.echo("2/2  seeding registry (commodities, varieties, markets, units) ...")
+    settings = get_settings()
+    with session_scope() as session:
+        counts = seed_registry(session, SEED_DIR)
+    for k, v in counts.items():
+        typer.echo(f"     {k:12} {v}")
+    typer.echo("")
+    typer.echo("Setup checklist:")
+    with session_scope() as session:
+        steps = collect_setup_steps(session, settings)
+    if _print_setup_steps(steps):
+        typer.echo("all done - run: uv run vervana serve")
+
+
+@app.command()
+def doctor() -> None:
+    """Diagnose first-run setup: what is done, what is missing, and the exact fix."""
+    from vervana.db.engine import session_scope
+    from vervana.setup_status import SETUP_COMMAND, collect_setup_steps
+
+    settings = get_settings()
+    typer.echo("Setup checklist:")
+    try:
+        with session_scope() as session:
+            steps = collect_setup_steps(session, settings)
+    except Exception as exc:  # DB missing/unmigrated: the checklist cannot even run
+        typer.echo(f"[TODO] database: cannot read it ({exc.__class__.__name__})")
+        typer.echo(f"       next: {SETUP_COMMAND}")
+        raise typer.Exit(code=1) from None
+    if not _print_setup_steps(steps):
+        raise typer.Exit(code=1)
+
+
 @app.command()
 def serve(host: str = "127.0.0.1", port: int = 8000) -> None:
     """Run the Vervana web platform (dashboard + API)."""
     import uvicorn
+    from sqlalchemy import func, select
+
+    from vervana.db.engine import session_scope
+    from vervana.models.entities import Commodity
+    from vervana.setup_status import SETUP_COMMAND
+
+    # Fail loudly and helpfully instead of serving 500s on an unmigrated database.
+    try:
+        with session_scope() as session:
+            session.scalar(select(func.count()).select_from(Commodity))
+    except Exception:
+        typer.echo(f"database is not ready - run: {SETUP_COMMAND}", err=True)
+        raise typer.Exit(code=1) from None
 
     uvicorn.run("vervana.web.app:app", host=host, port=port)
 

@@ -33,10 +33,16 @@ uv run vervana healthcheck   # prove the app loads and is configured correctly
 ### Run the platform (web dashboard + API)
 
 ```bash
-uv run vervana db upgrade         # create the database
-uv run vervana registry seed      # load the Delhi F&V starter registry
+uv run vervana setup              # first run: create the database + seed the registry (idempotent)
 uv run vervana serve              # start the web app at http://127.0.0.1:8000
 ```
+
+`setup` is safe to re-run: migrations apply only what is missing and the seed never
+duplicates rows. It loads *reference* data (commodity/market names) only - live
+prices appear after a successful capture below. If the dashboard looks empty,
+`uv run vervana doctor` prints a checklist of what is done, what is missing, and
+the exact next command; the dashboard shows the same checklist until setup is
+complete.
 
 Then open **http://127.0.0.1:8000**. Pages: **Dashboard** (totals + R5 status),
 **Prices** (browse/filter, every row links to its evidence), **Coverage (R5)** (the

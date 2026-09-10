@@ -241,6 +241,20 @@ code {
 .callout--info   { border-left-color: var(--accent); }
 .callout--info .callout__ico { color: var(--accent); }
 
+/* --- First-run setup checklist (dashboard) -------------------------------- */
+.setup-steps { list-style: none; margin: 0; padding: 0; }
+.setup-step {
+  display: flex; gap: 10px; align-items: flex-start;
+  padding: 9px 0; border-top: 1px solid var(--line);
+}
+.setup-step:first-child { border-top: 0; padding-top: 0; }
+.setup-step:last-child { padding-bottom: 0; }
+.setup-step__ico { flex: 0 0 auto; font-weight: 700; line-height: 1.55; }
+.setup-step--ok .setup-step__ico { color: var(--ok); }
+.setup-step--todo .setup-step__ico { color: var(--warn); }
+.setup-step__body { min-width: 0; }
+.setup-step__body code { display: inline-block; margin-top: 4px; }
+
 /* --- Panels --------------------------------------------------------------- */
 .panel {
   background: var(--surface);

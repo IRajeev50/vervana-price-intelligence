@@ -22,6 +22,7 @@ from sqlalchemy import func, select
 
 from vervana.analytics.coverage import compute_coverage, r5_verdict
 from vervana.confidence import price_confidence
+from vervana.config import get_settings
 from vervana.db.base import SourceClass
 from vervana.db.engine import session_scope
 from vervana.digest import build_digest
@@ -30,6 +31,7 @@ from vervana.models.ingest import IngestRun
 from vervana.models.observations import PriceObservation
 from vervana.models.review import AliasReview
 from vervana.repository.review import approve, pending
+from vervana.setup_status import collect_setup_steps
 from vervana.time import format_ist, now_utc, to_ist
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
@@ -83,12 +85,21 @@ def dashboard(request: Request):
                 "accepted": last_run.accepted,
                 "rows_in": last_run.rows_in,
             }
+        setup_steps = collect_setup_steps(s, get_settings())
     probe = _read_probe()
     delhi_today = probe[-1]["delhi_rows"] if probe else "—"
     return TEMPLATES.TemplateResponse(
         request,
         "dashboard.html",
-        _ctx(request, stats=stats, last=last, delhi_today=delhi_today, probe_rows=len(probe)),
+        _ctx(
+            request,
+            stats=stats,
+            last=last,
+            delhi_today=delhi_today,
+            probe_rows=len(probe),
+            setup_steps=setup_steps,
+            setup_all_ok=all(step.ok for step in setup_steps),
+        ),
     )
 
 
@@ -140,6 +151,7 @@ def prices(
             )
         ]
         classes = [sc.value for sc in SourceClass]
+        total_observations = s.scalar(select(func.count()).select_from(PriceObservation)) or 0
     return TEMPLATES.TemplateResponse(
         request,
         "prices.html",
@@ -152,6 +164,7 @@ def prices(
             f_market=market,
             f_source_class=source_class,
             q=q,
+            total_observations=total_observations,
         ),
     )
 

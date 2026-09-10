@@ -7,7 +7,6 @@ records (no lookahead), and empty states say so instead of implying data.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -17,6 +16,7 @@ import vervana.models  # noqa: F401 - register tables
 from vervana.db.base import Base
 from vervana.db.engine import make_engine, session_scope
 from vervana.repository.registry import seed_registry
+from vervana.time import now_utc, to_ist
 
 SEED_DIR = Path(__file__).resolve().parent.parent / "data" / "seed"
 
@@ -89,7 +89,9 @@ def test_record_json_api_traces(client):
 
 def test_calendar_month_and_empty_day_state(client):
     _save(client)
-    today = datetime.now(UTC).date()
+    # The app groups outlooks by IST date (Asia/Kolkata policy); the test must too,
+    # or it queries the wrong day in the hours where UTC and IST dates differ.
+    today = to_ist(now_utc()).date()
     r = client.get(f"/intelligence/history?month={today:%Y-%m}")
     assert r.status_code == 200
     assert "Outlook calendar" in r.text

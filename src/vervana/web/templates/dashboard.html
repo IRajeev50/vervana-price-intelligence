@@ -7,6 +7,26 @@
   <p class="page-head__sub">Provenance-first price intelligence for Indian mandis. Delhi-first; every number traces to its source.</p>
 </header>
 
+{% if not setup_all_ok %}
+<div class="panel setup-panel">
+  <h2>First-run setup</h2>
+  <p class="muted">This installation is not fully set up yet, so there is little to show. Each open step
+  below is one command, run in Terminal from the project folder. Seeding loads reference names only -
+  live prices appear after a successful capture and are always labelled by source.</p>
+  <ul class="setup-steps">
+    {% for step in setup_steps %}
+    <li class="setup-step {{ 'setup-step--ok' if step.ok else 'setup-step--todo' }}">
+      <span class="setup-step__ico" aria-hidden="true">{{ '✓' if step.ok else '→' }}</span>
+      <span class="setup-step__body">
+        <strong>{{ step.label }}.</strong> <span class="muted">{{ step.detail }}</span>
+        {% if step.action %}<br><code>{{ step.action }}</code>{% endif %}
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
 <div class="stat-grid">
   <div class="stat"><div class="stat__value">{{ "{:,}".format(stats.observations) }}</div><div class="stat__label">Price observations</div></div>
   <div class="stat"><div class="stat__value">{{ "{:,}".format(stats.commodities) }}</div><div class="stat__label">Commodities</div></div>

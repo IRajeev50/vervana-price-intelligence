@@ -46,8 +46,17 @@
     <tr><td colspan="9">
       <div class="empty">
         <span class="empty__ico" aria-hidden="true">◌</span>
+        {% if total_observations == 0 %}
+        <div class="empty__title">No live prices yet.</div>
+        <div class="empty__hint">
+          Nothing has been captured yet. Run <code>uv run vervana setup</code>, then
+          <code>uv run vervana ingest agmarknet --state Delhi --max-records 100</code>,
+          and refresh this page. See the Dashboard for the full setup checklist.
+        </div>
+        {% else %}
         <div class="empty__title">No prices match.</div>
-        <div class="empty__hint">(Delhi is currently empty in Agmarknet — see Coverage.)</div>
+        <div class="empty__hint">Clear the filters or widen the search. (Delhi may also be empty in the latest Agmarknet snapshot - see Coverage.)</div>
+        {% endif %}
       </div>
     </td></tr>
   {% endfor %}
