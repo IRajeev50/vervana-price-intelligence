@@ -25,6 +25,11 @@ Three cost stories are kept strictly separate because they behave differently:
 **M0 adds ₹0 fixed cost** (local dev + free GitHub Actions CI). The first real fixed cost
 is the VPS at deploy time.
 
+**M1 adds ₹0 fixed cost.** All new dependencies are libraries (sqlalchemy, alembic,
+rapidfuzz, indic-transliteration, jellyfish, psycopg). The embedding/torch matching path
+stays **deferred** (it would force a larger, costlier VPS); the shipped matchers are
+lexical + phonetic, both light.
+
 ## 2. Variable messaging/compute (tracked, not yet incurred)
 
 | Component | Added at | Basis | Note |

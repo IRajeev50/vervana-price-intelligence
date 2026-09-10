@@ -2,7 +2,7 @@
 
 > **Generated file — do not hand-edit.** Produced by `scripts/gen_risk_register.py` (run via `make risks`) from `scripts/risks_seed.yaml` (definitions) and a grep of the codebase for `RISK[<ID>]:` tags (live occurrences). Edit the seed or the code, then regenerate.
 
-**Summary:** 13 risks declared · 0 have live code tags · 13 not yet reached in code · 0 tag occurrences total.
+**Summary:** 13 risks declared · 1 have live code tags · 12 not yet reached in code · 1 tag occurrences total.
 
 ## 1. Declared risks (definitions)
 
@@ -16,7 +16,7 @@
 | `R6-MOAT-MODEL-GAP` | The video corpus is the defensibility AND the model trains on Agmarknet history. | 0 | — not yet reached in code — |
 | `R7-FORECAST-BAR` | Gradient boosting beats naive baselines on next-day F&V prices. | 0 | — not yet reached in code — |
 | `R8-YOUTUBE-TOS` | The corpus is both a legal risk and a defensible asset. | 0 | — not yet reached in code — |
-| `R9-NOT-IP` | The dataset is proprietary IP. | 0 | — not yet reached in code — |
+| `R9-NOT-IP` | The dataset is proprietary IP. | 1 | PENDING |
 | `R10-QCOMM-SOURCING` | Buying quick-commerce feeds from data vendors is compliant. | 0 | — not yet reached in code — |
 | `R11-RECORDER-CONFLICT` | Commission agents can be paid to report prices reliably. | 0 | — not yet reached in code — |
 | `R12-RECORDER-ECONOMICS` | The platform scales like software. | 0 | — not yet reached in code — |
@@ -24,7 +24,9 @@
 
 ## 2. Live code tags (grepped from source)
 
-_No `RISK[...]` tags in code yet._ Expected at M0 (foundations only). Tags appear as the data model and connectors are built (M1+).
+| ID | Location | Summary | Verdict |
+|---|---|---|---|
+| `R9-NOT-IP` | `src/vervana/models/entities.py:26` | This registry is treated as proprietary IP. Under Eastern Book | PENDING |
 
 ## 3. Evidence against each assumption
 

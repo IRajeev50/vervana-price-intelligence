@@ -1,0 +1,199 @@
+alias_text,alias_language,alias_source_type,canonical_name
+Potato,en,agmarknet_official,Potato
+आलू,hi,hindi_spoken,Potato
+aloo,hi-Latn,hinglish_transliteration,Potato
+alu,hi-Latn,hinglish_transliteration,Potato
+aaloo,hi-Latn,hinglish_transliteration,Potato
+Potato (Aloo) 1 kg,en,qcomm_sku_title,Potato
+batata,mr-Latn,trader_colloquial,Potato
+aalu,hi-Latn,hinglish_transliteration,Potato
+Onion,en,agmarknet_official,Onion
+प्याज,hi,hindi_spoken,Onion
+pyaz,hi-Latn,hinglish_transliteration,Onion
+pyaaz,hi-Latn,hinglish_transliteration,Onion
+kanda,mr-Latn,trader_colloquial,Onion
+Onion (Pyaaz) 1 kg,en,qcomm_sku_title,Onion
+dungri,gu-Latn,trader_colloquial,Onion
+pyaj,hi-Latn,hinglish_transliteration,Onion
+Tomato,en,agmarknet_official,Tomato
+टमाटर,hi,hindi_spoken,Tomato
+tamatar,hi-Latn,hinglish_transliteration,Tomato
+tamaatar,hi-Latn,hinglish_transliteration,Tomato
+tomatar,hi-Latn,trader_colloquial,Tomato
+Tomato (Tamatar) 500 g,en,qcomm_sku_title,Tomato
+tamater,hi-Latn,hinglish_transliteration,Tomato
+Cauliflower,en,agmarknet_official,Cauliflower
+फूलगोभी,hi,hindi_spoken,Cauliflower
+phool gobhi,hi-Latn,hinglish_transliteration,Cauliflower
+phoolgobi,hi-Latn,hinglish_transliteration,Cauliflower
+gobhi,hi-Latn,trader_colloquial,Cauliflower
+Cauliflower (Phool Gobhi) 1 pc,en,qcomm_sku_title,Cauliflower
+gobi,hi-Latn,trader_colloquial,Cauliflower
+Cabbage,en,agmarknet_official,Cabbage
+पत्तागोभी,hi,hindi_spoken,Cabbage
+patta gobhi,hi-Latn,hinglish_transliteration,Cabbage
+band gobhi,hi-Latn,trader_colloquial,Cabbage
+bandgobi,hi-Latn,hinglish_transliteration,Cabbage
+Cabbage (Patta Gobhi) 1 pc,en,qcomm_sku_title,Cabbage
+kobi,mr-Latn,trader_colloquial,Cabbage
+Brinjal,en,agmarknet_official,Brinjal
+बैंगन,hi,hindi_spoken,Brinjal
+baingan,hi-Latn,hinglish_transliteration,Brinjal
+baigan,hi-Latn,hinglish_transliteration,Brinjal
+eggplant,en,trader_colloquial,Brinjal
+Brinjal (Baingan) 500 g,en,qcomm_sku_title,Brinjal
+vangi,mr-Latn,trader_colloquial,Brinjal
+baingun,hi-Latn,hinglish_transliteration,Brinjal
+Capsicum,en,agmarknet_official,Capsicum
+शिमला मिर्च,hi,hindi_spoken,Capsicum
+shimla mirch,hi-Latn,hinglish_transliteration,Capsicum
+shimla mirchi,hi-Latn,hinglish_transliteration,Capsicum
+bell pepper,en,trader_colloquial,Capsicum
+Capsicum (Shimla Mirch) 500 g,en,qcomm_sku_title,Capsicum
+simla mirch,hi-Latn,hinglish_transliteration,Capsicum
+Green Chilli,en,agmarknet_official,Green Chilli
+हरी मिर्च,hi,hindi_spoken,Green Chilli
+hari mirch,hi-Latn,hinglish_transliteration,Green Chilli
+hari mirchi,hi-Latn,hinglish_transliteration,Green Chilli
+mirchi,hi-Latn,trader_colloquial,Green Chilli
+Green Chilli (Hari Mirch) 250 g,en,qcomm_sku_title,Green Chilli
+green chili,en,hinglish_transliteration,Green Chilli
+chilli,en,trader_colloquial,Green Chilli
+Okra,en,agmarknet_official,Okra
+भिंडी,hi,hindi_spoken,Okra
+bhindi,hi-Latn,hinglish_transliteration,Okra
+bhendi,hi-Latn,hinglish_transliteration,Okra
+lady finger,en,trader_colloquial,Okra
+Okra (Bhindi) 500 g,en,qcomm_sku_title,Okra
+bhindee,hi-Latn,hinglish_transliteration,Okra
+Bitter Gourd,en,agmarknet_official,Bitter Gourd
+करेला,hi,hindi_spoken,Bitter Gourd
+karela,hi-Latn,hinglish_transliteration,Bitter Gourd
+karella,hi-Latn,hinglish_transliteration,Bitter Gourd
+Bitter Gourd (Karela) 500 g,en,qcomm_sku_title,Bitter Gourd
+Bottle Gourd,en,agmarknet_official,Bottle Gourd
+लौकी,hi,hindi_spoken,Bottle Gourd
+lauki,hi-Latn,hinglish_transliteration,Bottle Gourd
+ghiya,hi-Latn,trader_colloquial,Bottle Gourd
+loki,hi-Latn,hinglish_transliteration,Bottle Gourd
+Bottle Gourd (Lauki) 1 pc,en,qcomm_sku_title,Bottle Gourd
+doodhi,gu-Latn,trader_colloquial,Bottle Gourd
+Pointed Gourd,en,agmarknet_official,Pointed Gourd
+परवल,hi,hindi_spoken,Pointed Gourd
+parwal,hi-Latn,hinglish_transliteration,Pointed Gourd
+parval,hi-Latn,hinglish_transliteration,Pointed Gourd
+Pointed Gourd (Parwal) 500 g,en,qcomm_sku_title,Pointed Gourd
+Pumpkin,en,agmarknet_official,Pumpkin
+कद्दू,hi,hindi_spoken,Pumpkin
+kaddu,hi-Latn,hinglish_transliteration,Pumpkin
+kadu,hi-Latn,hinglish_transliteration,Pumpkin
+Pumpkin (Kaddu) 1 kg,en,qcomm_sku_title,Pumpkin
+kaddoo,hi-Latn,hinglish_transliteration,Pumpkin
+Cucumber,en,agmarknet_official,Cucumber
+खीरा,hi,hindi_spoken,Cucumber
+kheera,hi-Latn,hinglish_transliteration,Cucumber
+khira,hi-Latn,hinglish_transliteration,Cucumber
+kakdi,hi-Latn,trader_colloquial,Cucumber
+Cucumber (Kheera) 500 g,en,qcomm_sku_title,Cucumber
+kakadi,hi-Latn,hinglish_transliteration,Cucumber
+Carrot,en,agmarknet_official,Carrot
+गाजर,hi,hindi_spoken,Carrot
+gajar,hi-Latn,hinglish_transliteration,Carrot
+gaajar,hi-Latn,hinglish_transliteration,Carrot
+Carrot (Gajar) 500 g,en,qcomm_sku_title,Carrot
+carott,en,hinglish_transliteration,Carrot
+Radish,en,agmarknet_official,Radish
+मूली,hi,hindi_spoken,Radish
+mooli,hi-Latn,hinglish_transliteration,Radish
+muli,hi-Latn,hinglish_transliteration,Radish
+Radish (Mooli) 500 g,en,qcomm_sku_title,Radish
+mula,hi-Latn,trader_colloquial,Radish
+Green Peas,en,agmarknet_official,Green Peas
+मटर,hi,hindi_spoken,Green Peas
+matar,hi-Latn,hinglish_transliteration,Green Peas
+mutter,hi-Latn,hinglish_transliteration,Green Peas
+peas,en,trader_colloquial,Green Peas
+Green Peas (Matar) 500 g,en,qcomm_sku_title,Green Peas
+hara matar,hi-Latn,trader_colloquial,Green Peas
+Spinach,en,agmarknet_official,Spinach
+पालक,hi,hindi_spoken,Spinach
+palak,hi-Latn,hinglish_transliteration,Spinach
+paalak,hi-Latn,hinglish_transliteration,Spinach
+Spinach (Palak) 250 g,en,qcomm_sku_title,Spinach
+palak leaves,en,trader_colloquial,Spinach
+Fenugreek Leaves,en,agmarknet_official,Fenugreek Leaves
+मेथी,hi,hindi_spoken,Fenugreek Leaves
+methi,hi-Latn,hinglish_transliteration,Fenugreek Leaves
+methi leaves,en,trader_colloquial,Fenugreek Leaves
+Fenugreek (Methi) 250 g,en,qcomm_sku_title,Fenugreek Leaves
+Coriander,en,agmarknet_official,Coriander
+धनिया,hi,hindi_spoken,Coriander
+dhaniya,hi-Latn,hinglish_transliteration,Coriander
+dhania,hi-Latn,hinglish_transliteration,Coriander
+cilantro,en,trader_colloquial,Coriander
+Coriander (Dhaniya) 100 g,en,qcomm_sku_title,Coriander
+hara dhaniya,hi-Latn,trader_colloquial,Coriander
+Ginger,en,agmarknet_official,Ginger
+अदरक,hi,hindi_spoken,Ginger
+adrak,hi-Latn,hinglish_transliteration,Ginger
+adarak,hi-Latn,hinglish_transliteration,Ginger
+Ginger (Adrak) 250 g,en,qcomm_sku_title,Ginger
+adhrak,hi-Latn,hinglish_transliteration,Ginger
+Garlic,en,agmarknet_official,Garlic
+लहसुन,hi,hindi_spoken,Garlic
+lehsun,hi-Latn,hinglish_transliteration,Garlic
+lahsun,hi-Latn,hinglish_transliteration,Garlic
+lasun,mr-Latn,trader_colloquial,Garlic
+Garlic (Lehsun) 250 g,en,qcomm_sku_title,Garlic
+lassan,hi-Latn,hinglish_transliteration,Garlic
+Apple,en,agmarknet_official,Apple
+सेब,hi,hindi_spoken,Apple
+seb,hi-Latn,hinglish_transliteration,Apple
+saib,hi-Latn,hinglish_transliteration,Apple
+Apple (Seb) 1 kg,en,qcomm_sku_title,Apple
+sev,hi-Latn,hinglish_transliteration,Apple
+appal,hi-Latn,hinglish_transliteration,Apple
+Banana,en,agmarknet_official,Banana
+केला,hi,hindi_spoken,Banana
+kela,hi-Latn,hinglish_transliteration,Banana
+kelaa,hi-Latn,hinglish_transliteration,Banana
+Banana (Kela) 6 pcs,en,qcomm_sku_title,Banana
+banaana,en,hinglish_transliteration,Banana
+Mango,en,agmarknet_official,Mango
+आम,hi,hindi_spoken,Mango
+aam,hi-Latn,hinglish_transliteration,Mango
+aams,hi-Latn,trader_colloquial,Mango
+Mango (Aam) 1 kg,en,qcomm_sku_title,Mango
+aam ka,hi-Latn,trader_colloquial,Mango
+Guava,en,agmarknet_official,Guava
+अमरूद,hi,hindi_spoken,Guava
+amrood,hi-Latn,hinglish_transliteration,Guava
+amrud,hi-Latn,hinglish_transliteration,Guava
+Guava (Amrood) 500 g,en,qcomm_sku_title,Guava
+amrud fal,hi-Latn,trader_colloquial,Guava
+Papaya,en,agmarknet_official,Papaya
+पपीता,hi,hindi_spoken,Papaya
+papita,hi-Latn,hinglish_transliteration,Papaya
+papeeta,hi-Latn,hinglish_transliteration,Papaya
+Papaya (Papita) 1 pc,en,qcomm_sku_title,Papaya
+papaya fruit,en,qcomm_sku_title,Papaya
+Pomegranate,en,agmarknet_official,Pomegranate
+अनार,hi,hindi_spoken,Pomegranate
+anar,hi-Latn,hinglish_transliteration,Pomegranate
+anaar,hi-Latn,hinglish_transliteration,Pomegranate
+Pomegranate (Anar) 500 g,en,qcomm_sku_title,Pomegranate
+anaar dana,hi-Latn,trader_colloquial,Pomegranate
+Grapes,en,agmarknet_official,Grapes
+अंगूर,hi,hindi_spoken,Grapes
+angoor,hi-Latn,hinglish_transliteration,Grapes
+angur,hi-Latn,hinglish_transliteration,Grapes
+Grapes (Angoor) 500 g,en,qcomm_sku_title,Grapes
+angoor green,hi-Latn,trader_colloquial,Grapes
+Lemon,en,agmarknet_official,Lemon
+नींबू,hi,hindi_spoken,Lemon
+nimbu,hi-Latn,hinglish_transliteration,Lemon
+neembu,hi-Latn,hinglish_transliteration,Lemon
+lime,en,trader_colloquial,Lemon
+Lemon (Nimbu) 250 g,en,qcomm_sku_title,Lemon
+limbu,mr-Latn,trader_colloquial,Lemon
+neebu,hi-Latn,hinglish_transliteration,Lemon
