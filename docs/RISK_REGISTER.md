@@ -26,7 +26,7 @@
 
 | ID | Location | Summary | Verdict |
 |---|---|---|---|
-| `R1-INFO-CHANGES-BEHAVIOUR` | `src/vervana/digest.py:155` | This digest assumes that showing a buyer the | PENDING |
+| `R1-INFO-CHANGES-BEHAVIOUR` | `src/vervana/digest.py:195` | This digest assumes that showing a buyer the | PENDING |
 | `R10-QCOMM-SOURCING` | `src/vervana/connectors/quickcommerce.py:51` | A "vendor feed" of quick-commerce prices is not a | PENDING |
 | `R11-RECORDER-CONFLICT` | `src/vervana/models/observer.py:23` | A paid recorder who holds positions in the commodities | PENDING |
 | `R12-RECORDER-ECONOMICS` | `src/vervana/economics.py:44` | The platform is assumed to scale like software, but | PENDING |

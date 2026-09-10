@@ -79,8 +79,41 @@ def _latest(session: Session, commodity_id: int, source_class: SourceClass):
     )
 
 
+def _national_wholesale(session: Session, commodity_id: int):
+    """A representative national wholesale ₹/kg: the MEDIAN of recent Agmarknet rows across
+    all markets (a single 'latest' row can be an arbitrary cheap/dear market). Returns
+    (median_kg_paise, representative_evidence_id) or None."""
+    import statistics
+
+    rows = list(
+        session.scalars(
+            select(PriceObservation)
+            .where(
+                PriceObservation.commodity_id == commodity_id,
+                PriceObservation.source_class == SourceClass.executed_summary,
+                PriceObservation.canonical_price_paise_per_kg.is_not(None),
+            )
+            .order_by(PriceObservation.observed_at.desc(), PriceObservation.id.desc())
+            .limit(400)
+        )
+    )
+    if not rows:
+        return None
+    median_kg = round(statistics.median(o.canonical_price_paise_per_kg for o in rows))
+    rep = min(rows, key=lambda o: abs(o.canonical_price_paise_per_kg - median_kg))
+    return median_kg, rep.id
+
+
+# A fresh-produce ₹/kg outside this band means the unit inference is unreliable for this
+# commodity (e.g. a per-crate quote forced through the wrong scale) — suppress it.
+_PLAUSIBLE_KG_PAISE = (300, 50_000)  # ₹3 .. ₹500 per kg
+
+
 def _latest_delhi_video(session: Session, commodity_id: int, scale: float | None):
-    """Latest Delhi video quote for a commodity, with the inferred unit scale applied."""
+    """A robust recent Delhi video price: the MEDIAN of the most recent quotes (not a single
+    possibly-outlier latest one), scaled to ₹/kg, and only if the result is plausible."""
+    import statistics
+
     from vervana.analytics.groundtruth import VIDEO_MARKETS
     from vervana.models.entities import Market
 
@@ -92,19 +125,26 @@ def _latest_delhi_video(session: Session, commodity_id: int, scale: float | None
     ]
     if not market_ids:
         return None
-    o = session.scalar(
-        select(PriceObservation)
-        .where(
-            PriceObservation.commodity_id == commodity_id,
-            PriceObservation.source_class == SourceClass.quote_indicative,
-            PriceObservation.market_id.in_(market_ids),
+    recent = list(
+        session.scalars(
+            select(PriceObservation)
+            .where(
+                PriceObservation.commodity_id == commodity_id,
+                PriceObservation.source_class == SourceClass.quote_indicative,
+                PriceObservation.market_id.in_(market_ids),
+            )
+            .order_by(PriceObservation.observed_at.desc(), PriceObservation.id.desc())
+            .limit(15)
         )
-        .order_by(PriceObservation.observed_at.desc(), PriceObservation.id.desc())
     )
-    if o is None:
+    if not recent:
         return None
-    kg = round((o.price_low_paise + o.price_high_paise) / 2 * scale)
-    return o.id, kg
+    kg = round(
+        statistics.median((o.price_low_paise + o.price_high_paise) / 2 * scale for o in recent)
+    )
+    if not (_PLAUSIBLE_KG_PAISE[0] <= kg <= _PLAUSIBLE_KG_PAISE[1]):
+        return None  # implausible ⇒ unit inference unreliable here; fall back to national
+    return recent[0].id, kg
 
 
 def build_lines(session: Session, commodities: list[str] | None = None) -> list[Line]:
@@ -117,7 +157,7 @@ def build_lines(session: Session, commodities: list[str] | None = None) -> list[
         c = session.scalar(select(Commodity).where(Commodity.canonical_name == name))
         if c is None:
             continue
-        wh = _latest(session, c.id, SourceClass.executed_summary)
+        nat = _national_wholesale(session, c.id)
         rt = _latest(session, c.id, SourceClass.retail_offer)
         platform = None
         if rt is not None:
@@ -132,9 +172,9 @@ def build_lines(session: Session, commodities: list[str] | None = None) -> list[
         lines.append(
             Line(
                 commodity=name,
-                wholesale_kg=wh.canonical_price_paise_per_kg if wh else None,
-                wholesale_obs=wh.id if wh else None,
-                wholesale_conf=price_confidence(wh) if wh else None,
+                wholesale_kg=nat[0] if nat else None,
+                wholesale_obs=nat[1] if nat else None,
+                wholesale_conf=0.8 if nat else None,
                 retail_kg=rt.canonical_price_paise_per_kg if rt else None,
                 retail_obs=rt.id if rt else None,
                 retail_conf=price_confidence(rt) if rt else None,

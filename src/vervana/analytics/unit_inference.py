@@ -84,8 +84,11 @@ def infer_units(session: Session) -> dict[str, InferredUnit]:
         a_rupees = amed / 100 if amed else None
         if amed and amed > 0:
             ratio = vmed / amed
-            if 20 <= ratio <= 500:
-                # ~100× ⇒ quintal. Confidence peaks when ratio is closest to 100.
+            # Only accept a unit when the ratio is UNAMBIGUOUSLY ~1× (kg) or ~100× (quintal).
+            # A ratio in between (e.g. 3–60×) is most likely a per-CRATE/pallı quote, which
+            # this kg-vs-quintal test cannot resolve — leave it "unknown" rather than force a
+            # wrong ÷100 that yields nonsense like ₹5/kg potato.
+            if 60 <= ratio <= 160:
                 conf = max(0.5, 1 - abs(ratio - 100) / 100)
                 out[commodity] = InferredUnit(
                     commodity,
@@ -96,8 +99,8 @@ def infer_units(session: Session) -> dict[str, InferredUnit]:
                     v_rupees,
                     a_rupees,
                 )
-            elif 0.2 <= ratio <= 5:
-                conf = max(0.5, 1 - abs(ratio - 1))
+            elif 0.3 <= ratio <= 3:
+                conf = max(0.5, 1 - abs(ratio - 1) / 2)
                 out[commodity] = InferredUnit(
                     commodity,
                     "kg",
@@ -108,12 +111,13 @@ def infer_units(session: Session) -> dict[str, InferredUnit]:
                     a_rupees,
                 )
             else:
+                hint = "per-crate suspected" if 3 < ratio < 60 else "ambiguous"
                 out[commodity] = InferredUnit(
                     commodity,
                     "unknown",
                     None,
                     0.2,
-                    f"ratio {ratio:.1f}× Agmarknet ⇒ ambiguous",
+                    f"ratio {ratio:.1f}× Agmarknet ⇒ {hint}",
                     v_rupees,
                     a_rupees,
                 )
