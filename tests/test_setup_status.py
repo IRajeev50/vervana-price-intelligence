@@ -32,6 +32,9 @@ FIXTURE = Path(__file__).resolve().parent / "fixtures" / "agmarknet_sample.json"
 def _fresh_db(tmp_path, monkeypatch) -> str:
     url = f"sqlite:///{tmp_path / 'setup.sqlite3'}"
     monkeypatch.setenv("VERVANA_DATABASE_URL", url)
+    # Force the "no key configured" state deterministically: an empty env var overrides
+    # any real key in a developer's .env, so these empty-state tests don't depend on it.
+    monkeypatch.setenv("VERVANA_DATA_GOV_IN_API_KEY", "")
     Base.metadata.create_all(make_engine(url))
     return url
 
@@ -40,7 +43,8 @@ def _by_key(steps):
     return {s.key: s for s in steps}
 
 
-def test_empty_db_nothing_done(session):
+def test_empty_db_nothing_done(session, monkeypatch):
+    monkeypatch.setenv("VERVANA_DATA_GOV_IN_API_KEY", "")  # isolate from a dev's real .env key
     steps = _by_key(collect_setup_steps(session, Settings()))
     assert not steps["registry"].ok
     assert not steps["api_key"].ok
@@ -99,6 +103,7 @@ def test_ingested_observations_complete_the_checklist(session, monkeypatch):
 
 def test_cli_setup_is_idempotent_and_reports(tmp_path, monkeypatch):
     monkeypatch.setenv("VERVANA_DATABASE_URL", f"sqlite:///{tmp_path / 'cli.sqlite3'}")
+    monkeypatch.setenv("VERVANA_DATA_GOV_IN_API_KEY", "")  # isolate from a dev's real .env key
     runner = CliRunner()
     first = runner.invoke(cli_app, ["setup"])
     assert first.exit_code == 0, first.output
