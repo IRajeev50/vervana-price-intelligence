@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}{{ impact.commodity }} policy impact{% endblock %}
+{% block body %}
+<header class="page-head"><div class="page-head__kicker">Policy intelligence</div><h1>{{ impact.commodity }} - scenario impact</h1><p class="page-head__sub">Policy, politics and climate translated into conditional price ranges with explicit triggers, confidence and sources.</p></header>
+<div class="callout callout--warn"><div class="callout__body"><strong>Scenario ranges, not point forecasts.</strong> {{ impact.method.magnitude }}</div></div>
+<div class="policy-actions"><a class="btn" href="/policy-impact/{{ impact.commodity }}/report.pdf">Download shareable PDF</a><a class="btn btn--ghost" href="/api/policy-impact/{{ impact.commodity }}">View JSON</a></div>
+{% for s in impact.scenarios %}<article class="panel policy-card"><div class="policy-card__head"><div><div class="page-head__kicker">{{ s.probability }} probability</div><h2>{{ s.name }}</h2></div><div class="impact-chip impact-chip--{{ s.direction }}">{{ s.direction|upper }} {{ s.magnitude_low_pct }}-{{ s.magnitude_high_pct }}%</div></div><p><strong>Trigger:</strong> {{ s.trigger }}</p><p><strong>Mechanism:</strong> {{ s.mechanism }}</p><dl class="policy-meta"><div><dt>Horizon</dt><dd>{{ s.horizon }}</dd></div><div><dt>Confidence</dt><dd>{{ '%.0f%%'|format(s.confidence*100) }}</dd></div></dl><p class="small muted"><strong>Watch:</strong> {{ s.watch|join(' · ') }}</p><p class="small">Sources: {% for sid in s.source_ids %}<a href="#source-{{ sid }}">[{{ sid }}]</a> {% endfor %}</p></article>{% endfor %}
+<section class="section"><h2>Sources</h2><ol class="source-list">{% for src in impact.sources %}<li id="source-{{ src.id }}"><a href="{{ src.url }}">{{ src.title }}</a> - {{ src.publisher }}, {{ src.published }}</li>{% endfor %}</ol></section>
+<p class="muted small">{{ impact.disclaimer }}</p>
+{% endblock %}
