@@ -639,11 +639,11 @@ def policy_impact_page(request: Request, commodity: str):
 
 @app.get("/policy-impact/{commodity}/report.pdf")
 def policy_impact_pdf(commodity: str):
-    from vervana.policy import build_policy_impact, render_policy_pdf
+    from vervana.policy import build_decision_brief, render_policy_pdf
     from vervana.intelligence.report import build_report
     with session_scope() as session:
         price_context = build_report(session, commodity).price_context
-    body = render_policy_pdf(build_policy_impact(commodity, price_context))
+    body = render_policy_pdf(build_decision_brief(commodity, price_context))
     filename = f"v-ai-{commodity.lower().replace(' ', '-')}-policy-impact.pdf"
     return Response(body, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
