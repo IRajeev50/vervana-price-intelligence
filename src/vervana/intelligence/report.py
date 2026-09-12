@@ -94,15 +94,20 @@ def build_report(
         )
         if rows:
             o = rows[0]
+            recent = list(session.scalars(select(PriceObservation).where(PriceObservation.commodity_id == c.id, PriceObservation.canonical_price_paise_per_kg.is_not(None)).order_by(PriceObservation.observed_at.desc()).limit(30)))
+            values = [r.canonical_price_paise_per_kg / 100 for r in recent]
+            latest = values[0] if values else None
+            prior = values[-1] if len(values) > 1 else None
             price_context = {
                 "observations": n or 0,
-                "latest_canonical_rupees": (
-                    None
-                    if o.canonical_price_paise_per_kg is None
-                    else round(o.canonical_price_paise_per_kg / 100, 2)
-                ),
+                "latest_canonical_rupees": None if latest is None else round(latest, 2),
                 "latest_class": o.source_class.value,
                 "latest_obs_id": o.id,
+                "trend_sample_size": len(values),
+                "trend_change_pct": None if latest is None or not prior else round((latest / prior - 1) * 100, 1),
+                "recent_low_rupees": None if not values else round(min(values), 2),
+                "recent_high_rupees": None if not values else round(max(values), 2),
+                "arrivals_status": "not captured in price_observation schema",
             }
 
     return IntelligenceReport(
