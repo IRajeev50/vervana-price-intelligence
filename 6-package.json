@@ -1,0 +1,1 @@
+{"name":"vervana-price-intelligence","private":true,"scripts":{"build":"python3 -m compileall -q src && python3 -c \"import sys; sys.path.insert(0,'src'); from vervana.policy import build_policy_impact,render_policy_pdf; assert render_policy_pdf(build_policy_impact('Sugar')).startswith(b'%PDF')\"","start":"uv run vervana serve"}}
