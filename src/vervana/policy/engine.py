@@ -118,3 +118,57 @@ def render_policy_pdf(report: dict) -> bytes:
     xref=out.tell(); out.write(f"xref\n0 {len(objs)+1}\n0000000000 65535 f \n".encode())
     for off in offsets[1:]: out.write(f"{off:010d} 00000 n \n".encode())
     out.write(f"trailer << /Size {len(objs)+1} /Root {catalog} 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode()); return out.getvalue()
+
+def render_intelligence_pdf(report: dict) -> bytes:
+    """Render the platform's full signal-to-impact intelligence view as A4 PDF."""
+    horizon = report.get("horizon", {})
+    rows: list[tuple[str, int]] = [
+        ("V-AI AGRICULTURAL INTELLIGENCE", 18),
+        (f"{report.get('commodity', 'Commodity')} | Signal-to-Impact Outlook", 15),
+        (f"Made {str(report.get('made_at_utc', ''))[:10]} | Honest horizon: {horizon.get('label', 'unknown')}", 9),
+        ("", 8),
+        ("EXECUTIVE OUTLOOK", 12),
+        (f"Verdict: {report.get('verdict', 'no signal')} | Confidence: {float(report.get('confidence', 0)):.0%}", 10),
+        (str(report.get("verdict_reason", "")), 9),
+        (f"Horizon basis: {horizon.get('basis', 'Not available')}", 9),
+        (f"Evidence coverage: {report.get('n_observed', 0)} observed | {report.get('n_simulated', 0)} simulated | {report.get('n_missing', 0)} missing", 9),
+    ]
+    pc = report.get("price_context", {})
+    if pc.get("latest_canonical_rupees") is not None:
+        rows.append((f"Latest verified price: Rs {pc['latest_canonical_rupees']:,.2f}/kg | {pc.get('observations', 0)} observation(s) | evidence #{pc.get('latest_obs_id', '-')}", 9))
+    rows.extend([("", 8), ("REASONING CHAIN", 12)])
+    for i, step in enumerate(report.get("steps", []), 1):
+        direction = step.get("direction", "unknown")
+        if hasattr(direction, "value"): direction = direction.value
+        rows.append((f"{i}. {str(step.get('name', '')).upper()} | {str(direction).upper()} | confidence {float(step.get('confidence', 0)):.0%}", 10))
+        rows.append((str(step.get("finding", "")), 9))
+        missing = step.get("missing") or []
+        if missing: rows.append(("Missing inputs: " + ", ".join(missing), 8))
+    rows.extend([("", 8), ("INPUT SIGNALS", 12)])
+    for sig in report.get("signals", []):
+        status=sig.get("status", "missing")
+        if hasattr(status, "value"): status=status.value
+        val=sig.get("value_numeric") if sig.get("value_numeric") is not None else sig.get("value_text", "-")
+        rows.append((f"{sig.get('kind','signal')} | {sig.get('region','India')} | {val} | {status} | {sig.get('source','')}", 8))
+    rows.extend([("", 8), ("METHOD & LIMITS", 12), ("Observed, simulated and missing inputs remain visibly separate. Simulated inputs cap confidence and must not be presented as live evidence.", 9), ("Decision support only. Not trading advice. This report records what the platform knew at generation time.", 8)])
+    pages=[]; page=[]; y=790
+    for raw,size in rows:
+        width=max(38,int(94*9/max(size,7)))
+        for line in textwrap.wrap(str(raw),width=width,break_long_words=False,break_on_hyphens=False) or [""]:
+            if y < 55: pages.append(page); page=[]; y=790
+            page.append((48,y,size,line)); y-=size+4
+    if page: pages.append(page)
+    objs=[]
+    def add(b): objs.append(b if isinstance(b,bytes) else b.encode("latin-1")); return len(objs)
+    font=add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"); contents=[]; page_ids=[]
+    for page in pages:
+        stream="\n".join(f"BT /F1 {s} Tf {x} {yy} Td ({_pdf_escape(t)}) Tj ET" for x,yy,s,t in page).encode("latin-1")
+        contents.append(add(b"<< /Length "+str(len(stream)).encode()+b" >>\nstream\n"+stream+b"\nendstream")); page_ids.append(add("PENDING"))
+    pages_id=add("PENDING")
+    for pid,cid in zip(page_ids,contents): objs[pid-1]=f"<< /Type /Page /Parent {pages_id} 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 {font} 0 R >> >> /Contents {cid} 0 R >>".encode()
+    objs[pages_id-1]=f"<< /Type /Pages /Count {len(page_ids)} /Kids [{' '.join(f'{p} 0 R' for p in page_ids)}] >>".encode(); catalog=add(f"<< /Type /Catalog /Pages {pages_id} 0 R >>")
+    out=BytesIO(); out.write(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n"); offsets=[0]
+    for i,obj in enumerate(objs,1): offsets.append(out.tell()); out.write(f"{i} 0 obj\n".encode()+obj+b"\nendobj\n")
+    xref=out.tell(); out.write(f"xref\n0 {len(objs)+1}\n0000000000 65535 f \n".encode())
+    for off in offsets[1:]: out.write(f"{off:010d} 00000 n \n".encode())
+    out.write(f"trailer << /Size {len(objs)+1} /Root {catalog} 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode()); return out.getvalue()
