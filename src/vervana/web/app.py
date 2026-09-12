@@ -15,7 +15,7 @@ from pathlib import Path
 from types import SimpleNamespace as _NS
 
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
@@ -605,6 +605,47 @@ def api_intelligence_record(rec_id: int):
             "report": json.loads(rec.report_json),
         }
 
+
+
+
+@app.get("/intelligence/{commodity}/report.pdf")
+def intelligence_pdf(commodity: str):
+    from vervana.intelligence.report import build_report
+    from vervana.policy import render_intelligence_pdf
+    with session_scope() as session:
+        report = build_report(session, commodity)
+    body = render_intelligence_pdf(report.to_dict())
+    filename = f"v-ai-{commodity.lower().replace(' ', '-')}-intelligence.pdf"
+    return Response(body, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+@app.get("/api/policy-impact/{commodity}")
+def api_policy_impact(commodity: str):
+    from vervana.policy import build_policy_impact
+    from vervana.intelligence.report import build_report
+    with session_scope() as session:
+        price_context = build_report(session, commodity).price_context
+    return build_policy_impact(commodity, price_context)
+
+
+@app.get("/policy-impact/{commodity}", response_class=HTMLResponse)
+def policy_impact_page(request: Request, commodity: str):
+    from vervana.policy import build_policy_impact
+    from vervana.intelligence.report import build_report
+    with session_scope() as session:
+        price_context = build_report(session, commodity).price_context
+    impact = build_policy_impact(commodity, price_context)
+    return TEMPLATES.TemplateResponse(request, "policy_impact.html", _ctx(request, impact=impact))
+
+
+@app.get("/policy-impact/{commodity}/report.pdf")
+def policy_impact_pdf(commodity: str):
+    from vervana.policy import build_policy_impact, render_policy_pdf
+    from vervana.intelligence.report import build_report
+    with session_scope() as session:
+        price_context = build_report(session, commodity).price_context
+    body = render_policy_pdf(build_policy_impact(commodity, price_context))
+    filename = f"v-ai-{commodity.lower().replace(' ', '-')}-policy-impact.pdf"
+    return Response(body, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
 @app.get("/review", response_class=HTMLResponse)
 def review_list(request: Request):
