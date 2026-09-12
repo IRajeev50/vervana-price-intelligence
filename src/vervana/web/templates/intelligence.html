@@ -41,6 +41,10 @@
 {% endif %}
 
 {% if not stored %}
+<div class="policy-actions"><a class="btn" href="/policy-impact/{{ report.commodity }}">Open policy & political scenarios</a><a class="btn btn--ghost" href="/intelligence/{{ report.commodity }}/report.pdf">Export intelligence to PDF</a></div>
+{% endif %}
+
+{% if not stored %}
 <form method="post" action="/intelligence/{{ report.commodity }}/save" class="save-form">
   <button class="btn btn--ghost" type="submit">Save this outlook to the audit log</button>
   <span class="muted small">Stored unedited with this exact timestamp; past outlooks are never recomputed.</span>
