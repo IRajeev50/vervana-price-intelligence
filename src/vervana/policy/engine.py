@@ -317,3 +317,60 @@ def render_policy_pdf(report:dict)->bytes:
 
 def render_intelligence_pdf(report:dict)->bytes:
     return _render_brief(build_decision_brief(report.get('commodity','Commodity'),report.get('price_context'),report),report)
+
+# Expanded evidence chain requested for decision briefs --------------------------------
+SOURCES.update({
+ "imd-agromet": Source("District agrometeorological advisories and weather bulletins", "India Meteorological Department", "https://mausam.imd.gov.in/", "current official bulletins"),
+ "agmarknet": Source("Mandi price and arrivals", "AGMARKNET 2.0 / DMI", "https://agmarknet.gov.in/", "current official platform"),
+ "wdra": Source("Registered warehouse directory and e-NWR ecosystem", "Warehousing Development and Regulatory Authority", "https://wdra.gov.in/", "current official registry"),
+ "cwc": Source("Warehouse locations, capacity and annual reporting", "Central Warehousing Corporation", "https://cewacor.nic.in/", "current official portal"),
+ "cpri": Source("Potato crop production, utilisation and processing research", "ICAR-Central Potato Research Institute", "https://cpri.icar.gov.in/", "current official research portal"),
+})
+
+def build_evidence_chain(commodity:str, price_context:dict|None=None)->list[dict]:
+    pc=price_context or {}; trend=pc.get('trend_change_pct')
+    trend_text=(f"{trend:+.1f}% across {pc.get('trend_sample_size',0)} recent canonical observations" if trend is not None else "No verified price trend available")
+    potato=commodity.strip().lower() in {"potato","potatoes"}
+    return [
+      {"stage":"1. Weather -> yield","state":"data source feasible; live bulletin parser not connected","observed":False,"finding":"IMD district agromet bulletins can support crop-stage weather stress. For potato, heat during tuber initiation/bulking, frost, excess rain and late blight conditions are relevant; yield effect must be crop-stage and region specific, not a generic rainfall score.","next_data":"Parse IMD bulletin date, district, crop stage, hazard, forecast window and advisory; join to a crop sensitivity table.","sources":["imd-agromet","cpri"]},
+      {"stage":"2. Mandi price + arrivals / production","state":"price data wired; arrivals field is a schema gap","observed":pc.get('latest_canonical_rupees') is not None,"finding":trend_text+". AGMARKNET 2.0 is the intended live official source. The earlier data.gov.in feed is stale and must not drive a current report.","next_data":"Add arrival_quantity, arrival_unit and market-day fields to the ingestion model; compute 7/28-day arrival anomaly and regional dispersion.","sources":["agmarknet"]},
+      {"stage":"3. Consumption destinations","state":"structural map; live demand feed not connected","observed":False,"finding":("Potato demand splits across household fresh consumption, food service, processing (chips/fries/flakes), seed and wastage. Each channel has different grade, season and price sensitivity." if potato else "Map household, institutional, processing, seed/feed/export and wastage channels before inferring demand."),"next_data":"Connect official utilisation research, processor procurement and retail/HoReCa demand proxies; keep structural shares separate from live offtake.","sources":["cpri","fao"]},
+      {"stage":"4. Warehouse occupancy + producer stock","state":"capacity/registry public; live occupancy and ownership generally not public","observed":False,"finding":"WDRA provides registered-facility context; NHB and CWC publish facility/capacity information. These sources do not establish today's commodity occupancy, release pace, grade or producer ownership. The report therefore shows no stock estimate.","next_data":"Node-level daily stock ledger: warehouse ID, WDRA/NHB linkage, commodity/grade, owner class, quantity in/out, occupied capacity, pledge/e-NWR status and release intention.","sources":["wdra","nhb-cold","cwc"]},
+    ]
+
+# Replace brief constructor with the richer chain while retaining stable keys.
+_old_build_decision_brief = build_decision_brief
+def build_decision_brief(commodity: str, price_context: dict | None = None, intelligence: dict | None = None) -> dict:
+    brief=_old_build_decision_brief(commodity,price_context,intelligence)
+    brief['evidence_chain']=build_evidence_chain(commodity,price_context)
+    present=brief['present'];pc=brief['price_context'];trend=pc.get('trend_change_pct')
+    present['price_direction']=("rising" if trend and trend>2 else ("falling" if trend and trend<-2 else ("broadly stable" if trend is not None else "unknown")))
+    present['price_range']=(f"Rs {pc['recent_low_rupees']:,.2f} to {pc['recent_high_rupees']:,.2f}/kg" if pc.get('recent_low_rupees') is not None else "not available")
+    present['arrivals']="Schema does not yet store arrival quantity"
+    # Ensure the expanded official register appears in the brief.
+    ids={s['id'] for s in brief['sources']}
+    for sid in ('imd-agromet','agmarknet','wdra','nhb-cold','cwc','cpri'):
+        if sid not in ids: brief['sources'].append({'id':sid,**asdict(SOURCES[sid])})
+    return brief
+
+# Enrich the professional renderer with an evidence-chain and explicit gap table.
+_base_render_brief=_render_brief
+def _render_brief(brief:dict, intelligence:dict|None=None)->bytes:
+    # Build the base report with its policy-quality cover/scenarios/decisions.
+    p=_BriefPDF(brief['commodity']+" Market Outlook","Weather, mandi, demand and warehouse evidence chain")
+    p.text(46,610,"As of",8,p.GREY,True);p.text(46,590,brief['generated_at_utc'][:10],11,p.NAVY,True)
+    p.text(200,610,"Geography",8,p.GREY,True);p.text(200,590,"India | commodity-specific",11,p.NAVY,True)
+    p.text(402,610,"Forward read",8,p.GREY,True);p.text(402,590,brief['forward_read'].title(),10,p.NAVY,True)
+    p.y=545;p.heading("Executive decision read","01");p.para("Evidence sequence: weather to crop yield; production and mandi arrivals; consumption destinations; warehouse occupancy and producer stock; then scenarios and actions. Missing links remain visible and cap confidence.",10)
+    pr=brief['present'];p.metric_row([("Current price",pr['price'],"Direction: "+pr.get('price_direction','unknown')),("Recent range",pr.get('price_range','not available'),pr['price_note']),("Warehouse / stock",pr['stock'],"No occupancy estimate")])
+    p.heading("Present evidence chain","02")
+    for e in brief.get('evidence_chain',[]):
+        p.need(105);p.text(40,p.y,e['stage'],11,p.NAVY,True);p.text(400,p.y,("OBSERVED" if e['observed'] else "DATA GAP"),8,(p.GREEN if e['observed'] else p.AMBER),True);p.y-=17;p.para(e['finding'],8);p.para("Next data: "+e['next_data'],7,p.GREY)
+    p.heading("Forward scenarios","03");[p.scenario(s) for s in brief['scenarios']]
+    p.heading("Decision matrix","04");short={"buyer":("Stage purchases","Check weather + arrivals + releases"),"seller":("Compare carry economics","Check storage + demand channel"),"policymaker":("Track farm/mandi/retail","Publish trigger + exit rule")};p.table(("Decision-maker","Act now","Escalation / check"),[(w.title(),*short[w]) for w in brief['decisions']],(90,190,235));[p.para(w.title()+": "+" ".join(a),8) for w,a in brief['decisions'].items()]
+    if intelligence:
+        p.heading("Platform intelligence chain","05");p.metric_row([("Verdict",str(intelligence.get('verdict','no signal')),str(intelligence.get('verdict_reason',''))),("Evidence",f"{intelligence.get('n_observed',0)} observed",f"{intelligence.get('n_simulated',0)} simulated | {intelligence.get('n_missing',0)} missing"),("Confidence",f"{float(intelligence.get('confidence',0)):.0%}","Capped when simulated")]);[p.para(f"{i}. {s.get('name','').upper()} | {str(getattr(s.get('direction','unknown'),'value',s.get('direction','unknown'))).upper()} | {float(s.get('confidence',0)):.0%} - {s.get('finding','')}",8) for i,s in enumerate(intelligence.get('steps',[]),1)]
+    p.heading("Publicly obtainable vs proprietary data","06");p.table(("Layer","Publicly feasible now","Still required"),[("Weather","IMD bulletins/advisories","Parsed crop-stage hazards"),("Mandi","AGMARKNET 2.0 prices/arrivals","Arrival fields + anomaly model"),("Demand","Official structural research","Live channel offtake"),("Warehouses","WDRA/NHB/CWC registry + capacity","Occupancy, ownership, release pace")],(95,195,225))
+    p.heading("Evidence and source register","07");p.table(("Source","Publisher","Use in this brief"),[(s['id'],s['publisher'],s['title']) for s in brief['sources']],(80,145,290));[p.para(f"[{s['id']}] {s['url']}",7,p.GREY) for s in brief['sources']]
+    p.heading("Method, limits and collection plan","08");p.para(brief['method']['magnitude']);p.para(brief['method']['confidence']);p.para("Implementation sequence: (1) add crop-stage weather parser; (2) migrate live mandi ingestion to AGMARKNET 2.0 and add arrival fields; (3) build consumption-channel registry and proxies; (4) onboard warehouse nodes for daily stock, ownership and releases; (5) calibrate scenario bands with walk-forward tests.");p.para("Warehouse capacity is never used as a proxy for current occupancy. Producer stock is never inferred from registration. "+brief['disclaimer'],8,p.GREY)
+    return p.finish()
