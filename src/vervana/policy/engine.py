@@ -172,3 +172,148 @@ def render_intelligence_pdf(report: dict) -> bytes:
     xref=out.tell(); out.write(f"xref\n0 {len(objs)+1}\n0000000000 65535 f \n".encode())
     for off in offsets[1:]: out.write(f"{off:010d} 00000 n \n".encode())
     out.write(f"trailer << /Size {len(objs)+1} /Root {catalog} 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode()); return out.getvalue()
+
+# Potato policy model and policy-brief decision layer ---------------------------------
+LIBRARY["potato"] = (
+    Scenario("Cold-store release stays orderly", "Stored crop is released in line with seasonal demand and mandi arrivals remain near normal", "neutral", -5, 6, "4-12 weeks", "medium", .56, "Potato supply is shifted across months through cold storage. Orderly drawdown prevents a harvest glut without creating a late-season shortage.", ("Agmarknet modal price and arrivals", "NHB cold-store capacity/occupancy", "release pace", "retail-wholesale spread"), ("fao",)),
+    Scenario("Stock concentration / delayed release", "Cold-store holdings remain concentrated or release slows while open-market arrivals weaken", "up", 12, 28, "3-10 weeks", "medium", .61, "A large share of marketable supply is time-shifted through storage. Slower release tightens spot availability and amplifies bargaining power upstream.", ("weekly arrivals", "store occupancy", "release volumes", "regional price dispersion"), ("fao",)),
+    Scenario("Harvest glut or distress unloading", "Fresh arrivals jump above seasonal norms, storage access is constrained, or financing forces early sales", "down", 15, 35, "1-6 weeks", "medium", .64, "Perishability and limited accessible storage make short-run supply inelastic. Forced selling can push farm-gate and mandi prices below production economics.", ("daily arrivals", "farm-gate/modal spread", "storage tariff", "credit availability"), ("fao",)),
+    Scenario("Government market intervention", "A sharp retail rise triggers stock monitoring, subsidised sale, import facilitation or anti-hoarding enforcement", "down", 8, 20, "2-8 weeks", "low", .48, "Administrative releases and enforcement can increase visible supply and compress margins, but the effect depends on intervention volume and timing.", ("Consumer Affairs notices", "state stock limits", "import/export action", "retail inflation"), ("fao",)),
+)
+SOURCES["nhb-cold"] = Source("Cold-storage schemes, capacity studies and price-arrival bulletins", "National Horticulture Board", "https://www.nhb.gov.in/subsidy_claim_cold_storage.html", "current official portal")
+# Attach the official storage source to potato scenarios.
+LIBRARY["potato"] = tuple(Scenario(**{**asdict(s), "watch": tuple(s.watch), "source_ids": tuple(list(s.source_ids)+["nhb-cold"])}) for s in LIBRARY["potato"])
+ALIASES["potatoes"] = "potato"
+
+def build_decision_brief(commodity: str, price_context: dict | None = None, intelligence: dict | None = None) -> dict:
+    impact = build_policy_impact(commodity, price_context)
+    pc = impact["price_context"]
+    px = pc.get("latest_canonical_rupees")
+    present = {
+        "price": f"Rs {px:,.2f}/kg" if px is not None else "Not verified",
+        "price_note": f"Based on {pc.get('observations',0)} platform observation(s)." if px is not None else "Refresh the commodity feed before making a price-sensitive decision.",
+        "stock": "Feed not connected",
+        "stock_note": "NHB capacity is context, not current stock. Occupancy, release pace and ownership concentration must be collected separately.",
+        "active_drivers": [s["name"] for s in impact["scenarios"][:3]],
+    }
+    direction_scores={"up":1,"down":-1,"neutral":0}
+    weighted=sum(direction_scores.get(s["direction"],0)*s["confidence"] for s in impact["scenarios"])
+    forward = "upside risk dominates" if weighted>.35 else ("downside risk dominates" if weighted<-.35 else "two-sided / range-bound risk")
+    decisions = {
+      "buyer": ["Stage purchases rather than locking the full requirement at one price.", "Escalate when arrivals weaken for two consecutive readings and storage release also slows.", "Separate physical availability risk from quoted-price noise."],
+      "seller": ["Compare carrying cost and spoilage risk with the scenario price band before holding stock.", "Use staggered releases; do not treat a policy headline as a durable trend without arrival confirmation.", "Document grade, location and storage condition because the platform price is not automatically your realisable price."],
+      "policymaker": ["Monitor farm-gate, mandi and retail prices together so intervention does not solve consumer inflation by creating farmer distress.", "Track occupancy and release concentration, not capacity alone.", "Publish intervention trigger, volume and exit rule to reduce avoidable volatility."],
+    }
+    impact.update({"present":present,"forward_read":forward,"decisions":decisions,"intelligence":intelligence or {}})
+    return impact
+
+# Professional policy-document PDF renderer. Pure PDF keeps local install dependency-free.
+class _BriefPDF:
+    W,H=595,842
+    NAVY=(0.055,0.12,0.22); BLUE=(0.05,0.38,0.62); SKY=(0.90,0.95,0.98); INK=(0.08,0.11,0.16); GREY=(0.38,0.43,0.49); LINE=(0.82,0.85,0.88); WHITE=(1,1,1); RED=(0.68,0.12,0.15); GREEN=(0.06,0.45,0.27); AMBER=(0.80,0.47,0.06)
+    def __init__(self,title,subtitle): self.title=title; self.subtitle=subtitle; self.pages=[]; self.ops=[]; self.y=0; self.page_no=0; self.new_page(cover=True)
+    @staticmethod
+    def esc(s): return _pdf_escape(str(s))
+    @staticmethod
+    def rgb(c): return " ".join(f"{v:.3f}" for v in c)
+    def rect(self,x,y,w,h,fill,stroke=None): self.ops.append(f"q {self.rgb(fill)} rg {x} {y} {w} {h} re f Q");
+    def text(self,x,y,s,size=9,color=None,bold=False): color=color or self.INK; font="F2" if bold else "F1"; self.ops.append(f"BT {self.rgb(color)} rg /{font} {size} Tf {x} {y} Td ({self.esc(s)}) Tj ET")
+    def line(self,x1,y1,x2,y2,color=None,w=.6): color=color or self.LINE; self.ops.append(f"q {self.rgb(color)} RG {w} w {x1} {y1} m {x2} {y2} l S Q")
+    def new_page(self,cover=False):
+        if self.ops: self.pages.append(self.ops)
+        self.ops=[]; self.page_no+=1; self.rect(0,0,self.W,self.H,self.WHITE)
+        if cover:
+            self.rect(0,670,self.W,172,self.NAVY); self.rect(0,654,self.W,16,self.BLUE)
+            self.text(46,795,"V-AI  |  AGRICULTURAL INTELLIGENCE",9,self.WHITE,True)
+            self.text(46,744,self.title,24,self.WHITE,True); self.text(46,714,self.subtitle,12,(.75,.84,.92))
+            self.text(46,683,"POLICY & DECISION BRIEF",9,self.WHITE,True); self.y=620
+        else:
+            self.rect(0,807,self.W,35,self.NAVY); self.text(38,819,"V-AI  |  "+self.title,9,self.WHITE,True); self.y=782
+    def footer(self,ops,page,total):
+        ops.append(f"q {self.rgb(self.LINE)} RG .6 w 38 35 m 557 35 l S Q")
+        ops.append(f"BT {self.rgb(self.GREY)} rg /F1 7 Tf 38 21 Td ({self.esc('Decision support, not trading advice | Generated '+datetime.now(timezone.utc).date().isoformat())}) Tj ET")
+        ops.append(f"BT {self.rgb(self.GREY)} rg /F2 7 Tf 525 21 Td ({page} / {total}) Tj ET")
+    def need(self,h):
+        if self.y-h<55:self.new_page()
+    def heading(self,s,kicker=None):
+        self.need(48)
+        if kicker:self.text(40,self.y,kicker.upper(),7,self.BLUE,True);self.y-=13
+        self.text(40,self.y,s,15,self.NAVY,True);self.y-=11;self.line(40,self.y,555,self.y,self.BLUE,1.4);self.y-=18
+    def para(self,s,size=9,color=None,indent=0,leading=None):
+        leading=leading or size+4; width=max(42,int((92-indent/6)*9/size)); lines=textwrap.wrap(str(s),width=width,break_long_words=False,break_on_hyphens=False) or [""]; self.need(len(lines)*leading+3)
+        for t in lines:self.text(40+indent,self.y,t,size,color);self.y-=leading
+        self.y-=3
+    def metric_row(self,items):
+        self.need(72); n=len(items); gap=8; w=(515-gap*(n-1))/n
+        for i,(label,value,note) in enumerate(items):
+            x=40+i*(w+gap); self.rect(x,self.y-54,w,58,self.SKY); self.text(x+10,self.y-10,label.upper(),7,self.BLUE,True); self.text(x+10,self.y-29,value,12,self.NAVY,True); self.text(x+10,self.y-44,note[:34],7,self.GREY)
+        self.y-=72
+    def scenario(self,s):
+        self.need(112); direction=s['direction']; col=self.RED if direction=='up' else (self.GREEN if direction=='down' else self.AMBER)
+        self.rect(40,self.y-91,515,96,(.965,.97,.975)); self.rect(40,self.y-91,5,96,col)
+        self.text(54,self.y-16,s['name'],11,self.NAVY,True); self.text(430,self.y-16,f"{direction.upper()} {s['magnitude_low_pct']} to {s['magnitude_high_pct']}%",9,col,True)
+        self.text(54,self.y-32,f"{s['horizon']}  |  confidence {s['confidence']:.0%}  |  {s['probability']} probability",8,self.GREY)
+        yy=self.y-49
+        for line in textwrap.wrap("Trigger: "+s['trigger'],88,break_long_words=False)[:2]:self.text(54,yy,line,8,self.INK,True);yy-=11
+        for line in textwrap.wrap(s['mechanism'],91,break_long_words=False)[:2]:self.text(54,yy,line,8,self.GREY);yy-=11
+        self.y-=108
+    def table(self,headers,rows,widths):
+        rh=24; self.need(rh*(len(rows)+1)+10); x=40; self.rect(x,self.y-rh,515,rh,self.NAVY)
+        xx=x
+        for h,w in zip(headers,widths):self.text(xx+6,self.y-16,h.upper(),7,self.WHITE,True);xx+=w
+        self.y-=rh
+        for ri,row in enumerate(rows):
+            if ri%2==0:self.rect(x,self.y-rh,515,rh,(.965,.97,.975))
+            xx=x
+            for val,w in zip(row,widths): self.text(xx+6,self.y-16,str(val)[:max(8,int(w/5.3))],7,self.INK);xx+=w
+            self.y-=rh
+        self.y-=10
+    def finish(self):
+        if self.ops:self.pages.append(self.ops)
+        total=len(self.pages)
+        for i,p in enumerate(self.pages,1):self.footer(p,i,total)
+        objs=[]
+        def add(b):objs.append(b if isinstance(b,bytes) else b.encode('latin-1'));return len(objs)
+        f1=add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");f2=add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>");cids=[];pids=[]
+        for p in self.pages:
+            st="\n".join(p).encode('latin-1');cids.append(add(b"<< /Length "+str(len(st)).encode()+b" >>\nstream\n"+st+b"\nendstream"));pids.append(add("PENDING"))
+        ps=add("PENDING")
+        for pid,cid in zip(pids,cids):objs[pid-1]=f"<< /Type /Page /Parent {ps} 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 {f1} 0 R /F2 {f2} 0 R >> >> /Contents {cid} 0 R >>".encode()
+        objs[ps-1]=f"<< /Type /Pages /Count {len(pids)} /Kids [{' '.join(f'{p} 0 R' for p in pids)}] >>".encode();cat=add(f"<< /Type /Catalog /Pages {ps} 0 R >>")
+        out=BytesIO();out.write(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n");off=[0]
+        for i,o in enumerate(objs,1):off.append(out.tell());out.write(f"{i} 0 obj\n".encode()+o+b"\nendobj\n")
+        xr=out.tell();out.write(f"xref\n0 {len(objs)+1}\n0000000000 65535 f \n".encode());[out.write(f"{z:010d} 00000 n \n".encode()) for z in off[1:]];out.write(f"trailer << /Size {len(objs)+1} /Root {cat} 0 R >>\nstartxref\n{xr}\n%%EOF\n".encode());return out.getvalue()
+
+def _render_brief(brief:dict, intelligence:dict|None=None)->bytes:
+    p=_BriefPDF(brief['commodity']+" Market Outlook","Present position, forward scenarios and decision implications")
+    p.text(46,610,"As of",8,p.GREY,True);p.text(46,590,brief['generated_at_utc'][:10],11,p.NAVY,True)
+    p.text(200,610,"Geography",8,p.GREY,True);p.text(200,590,"India | commodity-specific",11,p.NAVY,True)
+    p.text(402,610,"Forward read",8,p.GREY,True);p.text(402,590,brief['forward_read'].title(),10,p.NAVY,True)
+    p.y=545;p.heading("Executive decision read","01")
+    p.para("This brief separates what is known now from what is conditional. It joins the platform's verified price evidence with storage, arrivals, climate and policy scenarios; missing stock data is shown as missing, not estimated.",10)
+    pr=brief['present'];p.metric_row([("Current price",pr['price'],pr['price_note']),("Warehouse / stock",pr['stock'],"Occupancy feed status"),("Scenario balance",brief['forward_read'].title(),"Confidence-weighted read")])
+    p.heading("Present situation","02");p.para(pr['price_note']);p.para(pr['stock_note']);p.para("Active drivers: "+"; ".join(pr['active_drivers']))
+    p.heading("Forward scenarios","03")
+    for s in brief['scenarios']:p.scenario(s)
+    p.heading("Decision matrix","04")
+    rows=[]
+    short={"buyer":("Stage purchases","Check arrivals + releases"),"seller":("Compare carry economics","Use staggered releases"),"policymaker":("Track 3 price levels","Publish trigger + exit rule")}
+    for who in brief['decisions']: rows.append((who.title(),*short[who]))
+    p.table(("Decision-maker","Act now","Escalation / check"),rows,(90,215,210))
+    for who,actions in brief['decisions'].items():p.para(who.title()+": "+" ".join(actions),8)
+    if intelligence:
+        p.heading("Platform intelligence chain","05")
+        p.metric_row([("Verdict",str(intelligence.get('verdict','no signal')),str(intelligence.get('verdict_reason',''))),("Evidence",f"{intelligence.get('n_observed',0)} observed",f"{intelligence.get('n_simulated',0)} simulated | {intelligence.get('n_missing',0)} missing"),("Confidence",f"{float(intelligence.get('confidence',0)):.0%}","Capped when simulated")])
+        for i,s in enumerate(intelligence.get('steps',[]),1):
+            direction=s.get('direction','unknown');direction=getattr(direction,'value',direction);p.para(f"{i}. {s.get('name','').upper()} | {str(direction).upper()} | {float(s.get('confidence',0)):.0%} - {s.get('finding','')}",8)
+    p.heading("Evidence and source register","06")
+    p.table(("Source","Publisher","Use in this brief"),[(s['id'],s['publisher'],s['title']) for s in brief['sources']],(90,145,280))
+    for s in brief['sources']:p.para(f"[{s['id']}] {s['url']}",7,p.GREY)
+    p.heading("Method, limits and next data","07");p.para(brief['method']['magnitude']);p.para(brief['method']['confidence']);p.para("Next data priority: verified current warehouse occupancy and release pace by region. Capacity alone must never be described as current stock.");p.para(brief['disclaimer'],8,p.GREY)
+    return p.finish()
+
+def render_policy_pdf(report:dict)->bytes:
+    return _render_brief(report if 'present' in report else build_decision_brief(report['commodity'],report.get('price_context')))
+
+def render_intelligence_pdf(report:dict)->bytes:
+    return _render_brief(build_decision_brief(report.get('commodity','Commodity'),report.get('price_context'),report),report)
