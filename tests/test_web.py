@@ -72,3 +72,15 @@ def test_api_observation_traces(client):
 def test_review_and_ingest_pages(client):
     assert client.get("/review").status_code == 200
     assert client.get("/ingest").status_code == 200
+
+
+
+def test_digest_is_structured_and_keeps_provenance(client):
+    r = client.get("/digest")
+    assert r.status_code == 200
+    assert "Market spread board" in r.text
+    assert "Wholesale reference" in r.text
+    assert "Retail market" in r.text
+    assert "Evidence quality" in r.text
+    assert "/evidence/" in r.text
+    assert "View plain-text broadcast payload" in r.text

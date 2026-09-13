@@ -25,7 +25,7 @@ from vervana.confidence import price_confidence
 from vervana.config import get_settings
 from vervana.db.base import SourceClass
 from vervana.db.engine import session_scope
-from vervana.digest import build_digest
+from vervana.digest import build_digest, build_lines
 from vervana.models.entities import Alias, Commodity, Market
 from vervana.models.ingest import IngestRun
 from vervana.models.observations import PriceObservation
@@ -281,7 +281,21 @@ def benchmark_page(request: Request, commodity: str = "Onion"):
 def digest_page(request: Request):
     with session_scope() as s:
         text = build_digest(s)
-    return TEMPLATES.TemplateResponse(request, "digest.html", _ctx(request, digest=text))
+        lines = build_lines(s)
+    priced = sum(1 for line in lines if line.ref_kg is not None or line.retail_kg is not None)
+    complete = sum(1 for line in lines if line.ref_kg is not None and line.retail_kg is not None)
+    return TEMPLATES.TemplateResponse(
+        request,
+        "digest.html",
+        _ctx(
+            request,
+            digest=text,
+            lines=lines,
+            digest_date=to_ist(now_utc()).strftime("%d %b %Y"),
+            priced=priced,
+            complete=complete,
+        ),
+    )
 
 
 @app.get("/forecast", response_class=HTMLResponse)
