@@ -1,0 +1,10 @@
+zone,district,state,lat,lon,commodities
+nashik-onion,Nashik,Maharashtra,20.00,73.79,Onion
+solapur-sugarcane,Solapur,Maharashtra,17.66,75.91,Sugarcane
+meerut-sugarcane,Meerut,Uttar Pradesh,28.98,77.71,Sugarcane;Wheat
+agra-potato,Agra,Uttar Pradesh,27.18,78.01,Potato
+ludhiana-wheat,Ludhiana,Punjab,30.90,75.85,Wheat;Rice
+belagavi-sugarcane,Belagavi,Karnataka,15.85,74.50,Sugarcane
+kolar-tomato,Kolar,Karnataka,13.14,78.13,Tomato
+indore-onion,Indore,Madhya Pradesh,22.72,75.86,Onion
+hooghly-potato,Hooghly,West Bengal,22.90,88.39,Potato;Rice

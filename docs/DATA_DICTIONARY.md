@@ -91,7 +91,10 @@ selling_price ÷ pack_kg.
 - **Must never be used for:** treating a conflicted observer's quote as neutral.
 
 ## `context_signal` — model features (M7, Part 4.6)
-`signal_type` (weather/diesel/festival), `region`, `on_date`, `value_numeric`,
+`signal_type` (weather/diesel/festival; M9 upstream kinds such as
+`rainfall_deficit_pct`, `ndvi_anomaly`, `acreage_change_pct`; M11
+event-detection kinds `sowing_progress_pct`, `harvest_progress_pct`),
+`region`, `on_date`, `value_numeric`,
 `value_text`, `source`, `source_url`. Features, **not prices**.
 - **Must never be used for:** as a price — these never enter `price_observation`.
 
@@ -113,3 +116,4 @@ price, published unedited.
 `price_confidence_full(session, obs)` adds **cross-source agreement** — how close the row
 is to its peers *of the same source class, same commodity, same day* (never across classes,
 respecting the guard). Shown on the evidence page with its basis.
+

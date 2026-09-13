@@ -67,6 +67,17 @@ uv run vervana ingest agmarknet --state Delhi --max-records 100
 uv run vervana ingest history   # every run shows here, including failures
 ```
 
+Upstream supply signals (M11) have their own feeds: Sentinel-2 NDVI and IMD
+district rainfall work today; the Google ALU/AMED connector is a labelled
+scaffold until partner access is approved (it fetches nothing and fakes
+nothing). Status and setup:
+
+```bash
+uv run vervana supply status                # every feed: layer, state, next step
+uv run vervana supply ndvi                  # Sentinel-2 anomalies (needs free CDSE creds)
+uv run vervana supply rainfall-import my.csv  # IMD district rainfall
+```
+
 data.gov.in is often slow (a page can take over a minute), so the connector uses a
 120s timeout and retries slow/failed responses a few times before giving up. A failed
 capture saves nothing but is recorded in `ingest history`; just rerun the same
@@ -99,6 +110,7 @@ make down               # stop them
 - [`docs/RUNNING_COSTS.md`](docs/RUNNING_COSTS.md) — what it costs to run, kept honest.
 - [`docs/OPEN_QUESTIONS.md`](docs/OPEN_QUESTIONS.md) — things not yet settled.
 - [`docs/INTELLIGENCE.md`](docs/INTELLIGENCE.md) — the M9 upstream-signal intelligence layer: reasoning chain, honesty rules, honest horizons, sugar worked example.
+- [`docs/SUPPLY.md`](docs/SUPPLY.md) — the M11 supply-side layer: Sentinel-2 NDVI + IMD rainfall feeds (live), and the Google ALU/AMED connector seam (scaffold, partner access pending).
 - [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — what to do when something breaks.
 
 ## Licensing & attribution (applies once Agmarknet data is displayed)
@@ -106,3 +118,4 @@ make down               # stop them
 Agmarknet price data is published under the **Government Open Data License – India
 (GODL-India)** and carries the **DMI accuracy disclaimer**; both must be shown wherever
 that data appears. See [`docs/OPEN_QUESTIONS.md`](docs/OPEN_QUESTIONS.md).
+

@@ -596,6 +596,135 @@ def signals_import_csv(path: Path) -> None:
         typer.echo(f"  rejected [{count}]: {reason}")
 
 
+# ---------------------------------------------------------------------------
+# supply-side layer (M11): satellite + agromet feeds, Google ALU/AMED seam
+# ---------------------------------------------------------------------------
+supply_app = typer.Typer(
+    help="Supply-side feeds: Sentinel-2 NDVI, IMD rainfall, Google ALU/AMED seam.",
+    no_args_is_help=True,
+)
+app.add_typer(supply_app, name="supply")
+
+
+@supply_app.command("status")
+def supply_status() -> None:
+    """Show every supply feed's honest state (fallback vs scaffold, configured?)."""
+    from vervana.db.engine import session_scope
+    from vervana.supply.feeds import collect_feed_status, observed_supply_counts
+
+    for f in collect_feed_status(get_settings()):
+        tag = "LIVE" if f.layer == "fallback" else "SCAFFOLD"
+        conf = "configured" if f.configured else "not configured"
+        typer.echo(f"[{tag:<8}] {f.title}")
+        typer.echo(f"           state: {f.state} ({conf})")
+        typer.echo(f"           emits: {f.emits}")
+        typer.echo(f"           next:  {f.hint}")
+    try:
+        with session_scope() as session:
+            counts = observed_supply_counts(session)
+    except Exception:
+        counts = {}
+    if counts:
+        typer.echo(
+            "observed supply signals in store: "
+            + ", ".join(f"{k}={v}" for k, v in sorted(counts.items()))
+        )
+    else:
+        typer.echo("observed supply signals in store: none yet")
+
+
+@supply_app.command("ndvi")
+def supply_ndvi(
+    zone: str = typer.Option("", help="Limit to one zone id (default: all zones)."),
+    days: int = typer.Option(30, help="Window length in days (current and year-ago)."),
+) -> None:
+    """Fetch Sentinel-2 NDVI for the watch zones and ingest anomaly signals."""
+    from datetime import timedelta
+
+    from vervana.connectors.sentinel2 import Sentinel2NdviConnector
+    from vervana.db.engine import session_scope
+    from vervana.supply.zones import load_zones
+    from vervana.time import now_utc
+
+    zones = load_zones()
+    if zone:
+        zones = [z for z in zones if z.zone == zone]
+        if not zones:
+            typer.echo(f"unknown zone '{zone}' - see data/config/supply_zones.csv", err=True)
+            raise typer.Exit(code=1)
+    today = now_utc().date()
+    current_from, current_to = today - timedelta(days=days), today
+    baseline_from = current_from.replace(year=current_from.year - 1)
+    baseline_to = current_to.replace(year=current_to.year - 1)
+
+    conn = Sentinel2NdviConnector()
+    try:
+        records = conn.fetch_raw(
+            zones=zones,
+            current_from=current_from,
+            current_to=current_to,
+            baseline_from=baseline_from,
+            baseline_to=baseline_to,
+        )
+    except RuntimeError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from None
+    with session_scope() as session:
+        run, result = conn.ingest_with_run(session, records, mode="api")
+        typer.echo(
+            f"ingest_run#{run.id}: rows_in={result.rows_in} "
+            f"accepted={result.accepted} rejected={result.rejected}"
+        )
+        for reason, count in sorted(result.reason_counts.items(), key=lambda kv: -kv[1]):
+            typer.echo(f"  rejected [{count}]: {reason}")
+
+
+@supply_app.command("rainfall-import")
+def supply_rainfall_import(path: Path) -> None:
+    """Import IMD district rainfall (CSV) as observed rainfall_deficit_pct signals."""
+    import csv as _csv
+
+    from vervana.connectors.imd import ImdRainfallConnector
+    from vervana.db.engine import session_scope
+
+    with Path(path).open(encoding="utf-8") as fh:
+        records = list(_csv.DictReader(fh))
+    with session_scope() as session:
+        run, result = ImdRainfallConnector().ingest_with_run(session, records, mode="csv")
+        typer.echo(
+            f"ingest_run#{run.id}: rows_in={result.rows_in} "
+            f"accepted={result.accepted} rejected={result.rejected}"
+        )
+    for reason, count in sorted(result.reason_counts.items(), key=lambda kv: -kv[1]):
+        typer.echo(f"  rejected [{count}]: {reason}")
+
+
+@supply_app.command("alu")
+def supply_alu() -> None:
+    """Google ALU seam status (SCAFFOLD - partner access pending)."""
+    from vervana.supply.alu import AluClient
+
+    s = AluClient(get_settings()).status()
+    typer.echo(f"{s.title} [{s.state}]")
+    typer.echo(f"will emit: {s.emits}")
+    typer.echo(f"next: {s.hint}")
+    typer.echo(f"docs: {s.docs_url}")
+    typer.echo("nothing is fetched and nothing is faked until access is configured")
+
+
+@supply_app.command("amed")
+def supply_amed() -> None:
+    """Google AMED seam status (SCAFFOLD - partner access pending)."""
+    from vervana.supply.amed import AmedClient
+
+    s = AmedClient(get_settings()).status()
+    typer.echo(f"{s.title} [{s.state}]")
+    typer.echo(f"will emit: {s.emits}")
+    typer.echo(f"next: {s.hint}")
+    typer.echo(f"docs: {s.docs_url}")
+    typer.echo("nothing is fetched and nothing is faked until access is configured")
+
+
 @signals_app.command("list")
 def signals_list() -> None:
     """List the observed upstream signals currently in the context store."""

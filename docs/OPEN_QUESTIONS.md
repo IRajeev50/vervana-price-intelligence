@@ -16,3 +16,15 @@ milestone by which it must be answered.
 | 8 | **M5 ordering.** M5 (ground-truth on video quotes) is sequenced before M6 (the pipeline that produces them). Confirm the proposed split: M5(a) Agmarknet-vs-invoice needs no video; M5(b) video-vs-invoice uses a small hand-extracted sample. | UNDERSTANDING.md §3.4 | M5 | OPEN — proposed resolution awaiting founder nod. |
 | 9 | **Alias backlog from live Agmarknet.** Agmarknet commodity names (e.g. "Bhindi(Ladies Finger)", "Onion") won't all match the English canonical seed, so real ingest will **reject** unmatched rows as `unresolved_commodity/market` until aliases are added + verified. Expected, not a bug — but on first live pull we'll need a review pass to alias the real Agmarknet vocabulary. Consider auto-enqueuing fuzzy suggestions (M3). | M2 build | first live M2 run | OPEN — will surface a rejection report on the first live pull. |
 | 10 | **GODL-India: fields confirmed, clause text still unread.** Verified the resource schema (State/District/Market/Commodity/Variety/Grade/Arrival_Date/Min/Max/Modal_Price, ₹/quintal) and that field naming is non-standardised (handled by loud case-insensitive mapping). The exact GODL clause text remains robots-blocked (see #2). | M2 build | before display | resolved-partial. |
+
+## Google ALU/AMED partner access (added 2026-09-13, M11)
+
+The Agricultural Understanding interest form was submitted 2026-09-13; Google
+quotes a 4-6 week review and approval is not guaranteed. The connector seam is
+built as a scaffold (see `docs/SUPPLY.md`). Open until approval lands: the
+callable endpoint URLs, the response schemas (marked `TODO(partner-docs)`),
+per-field licensing/attribution terms, and whether field-level data may be
+stored or must be re-queried. If approval is declined, the fallback path
+(Sentinel-2 NDVI + IMD rainfall) already covers `ndvi_anomaly` and
+`rainfall_deficit_pct`; `acreage_change_pct` and the progress kinds would need
+another source (e.g. DES crop-acreage statistics imported as observed CSVs).

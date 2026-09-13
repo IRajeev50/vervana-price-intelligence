@@ -51,6 +51,27 @@
   {% endfor %}
 </div>
 
+<section class="section" aria-labelledby="feeds-h">
+  <h2 id="feeds-h">Supply-side feeds</h2>
+  <p class="muted small">Where the production and supply-timing signals come from. The fallback feeds (Sentinel-2 NDVI, IMD rainfall) work today. The Google ALU/AMED connector is a <strong>scaffold</strong>: partner access has been requested but not granted, so it fetches nothing and fakes nothing - it drops in when approval lands.</p>
+  <div class="table-wrap">
+  <table class="data">
+    <thead><tr><th>Feed</th><th>Layer</th><th>Status</th><th>Emits</th><th>Next step</th></tr></thead>
+    <tbody>
+    {% for f in feeds %}
+      <tr>
+        <td class="cell-strong">{{ f.title }}</td>
+        <td>{% if f.layer == 'scaffold' %}<span class="pill pill--warn">scaffold</span>{% else %}fallback{% endif %}</td>
+        <td><span class="pill pill--{{ 'observed' if f.configured and f.layer != 'scaffold' else ('warn' if f.layer == 'scaffold' else 'missing') }}">{{ f.state }}</span></td>
+        <td class="cell-muted small">{{ f.emits }}</td>
+        <td class="cell-muted small">{{ f.hint }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
 <section class="section" aria-labelledby="horizons-h">
   <h2 id="horizons-h">Why the horizons differ</h2>
   <div class="table-wrap">
@@ -72,3 +93,4 @@
 
 <p class="muted small">CLI: <code>vervana intelligence horizons</code> · <code>vervana intelligence outlook Sugarcane</code>. Not trading advice.</p>
 {% endblock %}
+

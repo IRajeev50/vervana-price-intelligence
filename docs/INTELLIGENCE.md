@@ -61,6 +61,22 @@ computed, but until real feeds (IMD, CWC, ISMA, DGFT) are connected via
 live finding. `vervana intelligence outlook Sugarcane --observed-only` shows what
 the platform can honestly say with live feeds alone: currently "no signal".
 
+## Supply-side signal kinds (M11)
+
+Two kinds joined the chain with the M11 supply layer
+(details and feed setup in `docs/SUPPLY.md`):
+
+- `sowing_progress_pct` (production step): event-detected sowing progress as %
+  of normal area. Below 70% at this date the production score drops (area
+  likely ends down); above 95% it rises. This is the earliest acreage signal.
+- `harvest_progress_pct` (supply step): event-detected harvest progress as %
+  of area. Past 50%, the supply score rises - the crop is physically moving
+  toward mandis. A TIMING signal, never a volume signal.
+
+The Google ALU/AMED APIs that will produce these are partner-gated (access
+requested, not granted), so until then both kinds report `missing` in every
+outlook - the chain says "not connected" instead of guessing.
+
 ## Connecting real feeds
 
 Observed signals import into `context_signal`:
@@ -106,3 +122,4 @@ as they were. The review is repeatable: same harness, same walk-forward rule.
   displayed input-signal table only. The reasoning chain is commodity-level and
   always uses all regions; producer-group feeds are not connected yet, and the
   UI says so rather than implying region- or group-specific analysis exists.
+

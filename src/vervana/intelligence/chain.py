@@ -30,6 +30,9 @@ RESERVOIR_LOW = 55.0  # % of capacity
 NDVI_BAD = -0.05
 ACREAGE_DOWN = -3.0  # %
 ARRIVALS_DOWN = -10.0  # %
+SOWING_BEHIND = 70.0  # % of normal area sown by this date -> area likely down
+SOWING_AHEAD = 95.0  # % -> sowing effectively complete/on time
+HARVEST_UNDERWAY = 50.0  # % of area harvested -> supply is reaching mandis now
 STOCKS_TIGHT_VS_CONSUMPTION = 0.15  # stocks < 15% of annual consumption
 
 
@@ -122,6 +125,12 @@ def build_chain(signals: list[Signal]) -> list[ChainStep]:
         if acr is not None:
             score += -1 if acr <= ACREAGE_DOWN else (0 if acr < 0 else 1)
             parts.append(f"acreage {acr:g}% vs last year")
+        sowing = _num(have.get("sowing_progress_pct", []))
+        if sowing is not None:
+            # Event-detected sowing progress is the earliest acreage signal:
+            # behind normal at this date means area is likely to end down.
+            score += -1 if sowing < SOWING_BEHIND else (1 if sowing > SOWING_AHEAD else 0)
+            parts.append(f"sowing progress {sowing:g}% of normal")
         direction = (
             Direction.down if score <= -2 else (Direction.up if score >= 2 else Direction.neutral)
         )
@@ -158,6 +167,12 @@ def build_chain(signals: list[Signal]) -> list[ChainStep]:
         if arr is not None:
             score += -1 if arr <= ARRIVALS_DOWN else (0 if arr < 0 else 1)
             parts.append(f"mandi arrivals {arr:g}% vs normal")
+        harvest = _num(have.get("harvest_progress_pct", []))
+        if harvest is not None:
+            # Harvest progress is a TIMING signal, not a volume signal: past the
+            # halfway mark, the crop is physically moving toward the mandis now.
+            score += 1 if harvest >= HARVEST_UNDERWAY else 0
+            parts.append(f"harvest progress {harvest:g}% of area")
         stocks = _num(have.get("stocks_lmt", []))
         cons = _num(have.get("consumption_lmt", []))
         if stocks is not None and cons:

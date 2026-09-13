@@ -60,6 +60,25 @@ class Settings(BaseSettings):
     # and tests. Production sets VERVANA_DATABASE_URL to the Postgres DSN.
     database_url: str = "sqlite:///vervana.dev.sqlite3"
 
+    # --- Supply-side feeds (M11; safe defaults, secrets stay None) ---
+    # Copernicus Data Space (Sentinel-2 NDVI fallback path): free OAuth client.
+    cds_client_id: str | None = None
+    cds_client_secret: str | None = None
+    cds_token_url: str = (
+        "https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token"
+    )
+    cds_statistics_url: str = "https://sh.dataspace.copernicus.eu/api/v1/statistics"
+    # IMD district rainfall: optional machine-readable CSV endpoint. The public
+    # bulletin is a PDF; without this, use `vervana supply rainfall-import`.
+    imd_district_rainfall_url: str | None = None
+    # Google Agricultural Understanding (ALU/AMED) - partner access pending.
+    # Endpoint URLs are not public; set them from the partner documentation when
+    # access is granted. Empty => the scaffold reports "access pending" and
+    # fetches nothing.
+    google_agri_api_key: str | None = None
+    google_alu_api_url: str | None = None
+    google_amed_api_url: str | None = None
+
     # --- Secrets (no real defaults; must come from env when the feature needs them) ---
     # data.gov.in API key for Agmarknet ingest (M2). Absent in dev/tests.
     data_gov_in_api_key: str | None = None

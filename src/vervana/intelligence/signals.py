@@ -50,13 +50,28 @@ SIGNAL_KINDS: dict[str, str] = {
     "crushing_recovery_pct": "mill sugar recovery %",
     "input_sales_change_pct": "% change in fertilizer/pesticide sales vs normal",
     "policy_event": "government intervention (text)",
+    # M11 supply-side layer (satellite / event-detection feeds):
+    "sowing_progress_pct": "% of normal sown area planted by this date (event detection)",
+    "harvest_progress_pct": "% of crop area harvested by this date (event detection)",
 }
 
 # Which kinds feed which chain step. A step with none of its kinds present must
 # say "insufficient evidence".
 STEP_SIGNALS: dict[str, list[str]] = {
-    "production": ["acreage_change_pct", "rainfall_deficit_pct", "ndvi_anomaly", "reservoir_pct"],
-    "supply": ["arrivals_change_pct", "stocks_lmt", "production_lmt", "crushing_recovery_pct"],
+    "production": [
+        "acreage_change_pct",
+        "rainfall_deficit_pct",
+        "ndvi_anomaly",
+        "reservoir_pct",
+        "sowing_progress_pct",
+    ],
+    "supply": [
+        "arrivals_change_pct",
+        "stocks_lmt",
+        "production_lmt",
+        "crushing_recovery_pct",
+        "harvest_progress_pct",
+    ],
     "balance": ["production_lmt", "consumption_lmt", "stocks_lmt"],
     "impacts": ["input_sales_change_pct", "policy_event"],
 }
