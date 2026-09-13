@@ -1,16 +1,63 @@
 {% extends "base.html" %}
 {% block title %}HoReCa digest{% endblock %}
 {% block body %}
-<header class="page-head">
-  <div class="page-head__kicker">Overview</div>
-  <h1>HoReCa procurement digest</h1>
-  <p class="page-head__sub">For HoReCa buyers &amp; quick-commerce operators. Shows today's <strong>wholesale vs retail spread</strong> — the two are never blended. This is the message content a WhatsApp broadcast would send.</p>
+<header class="page-head page-head--split">
+  <div>
+    <div class="page-head__kicker">Procurement intelligence</div>
+    <h1>HoReCa procurement digest</h1>
+    <p class="page-head__sub">A buyer-ready view of wholesale reference prices against quick-commerce retail. Sources stay separate, linked and confidence-scored.</p>
+  </div>
+  <div class="as-of"><span>As of</span><strong>{{ digest_date }}</strong><small>India Standard Time</small></div>
 </header>
 
-<div class="digest-frame">
-  <div class="digest-preview">{{ digest }}</div>
+<div class="digest-summary" aria-label="Digest coverage summary">
+  <div class="digest-summary__item"><span class="digest-summary__value">{{ lines|length }}</span><span class="digest-summary__label">Basket items</span></div>
+  <div class="digest-summary__item"><span class="digest-summary__value">{{ complete }}</span><span class="digest-summary__label">Comparable pairs</span></div>
+  <div class="digest-summary__item"><span class="digest-summary__value">{{ priced }}</span><span class="digest-summary__label">With price evidence</span></div>
+  <div class="digest-summary__note"><span class="legend-dot legend-dot--observed"></span>Wholesale reference <span class="legend-dot legend-dot--retail"></span>Retail offer <span class="legend-dot legend-dot--quote"></span>Indicative quote</div>
 </div>
 
-<p class="muted small section">Regenerate from the CLI: <code>uv run vervana digest</code> · customise the basket: <code>uv run vervana digest --commodities "Potato,Onion,Tomato"</code></p>
-<p class="muted small">Sending to real WhatsApp numbers needs the Meta Business API (a data-residency decision) and is a permissioned action — the message <em>content</em> is done; wiring the channel is the remaining step.</p>
+<section class="panel panel--flush digest-board" aria-labelledby="market-board-h">
+  <div class="panel__head digest-board__head">
+    <div><h2 id="market-board-h">Market spread board</h2><p class="muted small">Retail premium against the preferred wholesale reference. Positive spread can flag procurement headroom.</p></div>
+    <span class="data-freshness"><span></span>Evidence-linked</span>
+  </div>
+  <div class="table-wrap table-wrap--embedded">
+    <table class="data digest-table">
+      <thead><tr><th>Commodity</th><th>Wholesale reference</th><th>Retail market</th><th class="num">Spread</th><th>Evidence quality</th></tr></thead>
+      <tbody>
+      {% for line in lines %}
+        {% set pct = (line.spread_kg / line.ref_kg * 100) if line.spread_kg is not none and line.ref_kg else none %}
+        <tr>
+          <td><div class="commodity-cell"><span class="commodity-mark">{{ line.commodity[0] }}</span><div><strong>{{ line.commodity }}</strong><small>{{ 'Comparable today' if pct is not none else 'Partial evidence' }}</small></div></div></td>
+          <td>
+            {% if line.ref_kg is not none %}<div class="price-value">₹{{ '%.0f'|format(line.ref_kg / 100) }}<small>/kg</small></div><div class="source-line">{{ line.ref_label }}{% if line.delhi_video_obs %} · <a href="/evidence/{{ line.delhi_video_obs }}">ev#{{ line.delhi_video_obs }}</a>{% elif line.wholesale_obs %} · <a href="/evidence/{{ line.wholesale_obs }}">ev#{{ line.wholesale_obs }}</a>{% endif %}</div>{% else %}<span class="missing-value">No wholesale price</span>{% endif %}
+          </td>
+          <td>
+            {% if line.retail_kg is not none %}<div class="price-value">₹{{ '%.0f'|format(line.retail_kg / 100) }}<small>/kg</small></div><div class="source-line">{{ line.retail_platform or 'Retail panel' }}{% if line.retail_obs %} · <a href="/evidence/{{ line.retail_obs }}">ev#{{ line.retail_obs }}</a>{% endif %}</div>{% else %}<span class="missing-value">No retail offer</span>{% endif %}
+          </td>
+          <td class="num">
+            {% if pct is not none %}<span class="spread-chip {{ 'spread-chip--high' if pct >= 100 else ('spread-chip--medium' if pct >= 30 else ('spread-chip--negative' if pct < 0 else 'spread-chip--low')) }}">{{ '+' if pct > 0 else '' }}{{ '%.0f'|format(pct) }}%</span><div class="spread-amount">{{ '+' if line.spread_kg > 0 else '-' }}₹{{ '%.0f'|format((line.spread_kg|abs) / 100) }}/kg</div>{% else %}<span class="spread-chip spread-chip--na">Not comparable</span>{% endif %}
+          </td>
+          <td>
+            <div class="evidence-stack">
+              {% if line.delhi_video_obs %}<div><span class="pill quote_indicative">Indicative</span><span class="conf-score">{{ '%.0f'|format(line.delhi_video_conf * 100) }}%</span></div>{% elif line.wholesale_obs %}<div><span class="pill executed_summary">Observed</span><span class="conf-score">{{ '%.0f'|format(line.wholesale_conf * 100) }}%</span></div>{% endif %}
+              {% if line.retail_obs %}<div><span class="pill retail_offer">Retail</span><span class="conf-score">{{ '%.0f'|format(line.retail_conf * 100) }}%</span></div>{% endif %}
+              {% if not line.wholesale_obs and not line.delhi_video_obs and not line.retail_obs %}<span class="pill pill--missing">Missing</span>{% endif %}
+            </div>
+          </td>
+        </tr>
+      {% else %}<tr><td colspan="5"><div class="empty"><span class="empty__ico">◌</span><div class="empty__title">No priced commodities yet</div><div class="empty__hint">Run setup and ingest source data to populate this board.</div></div></td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<div class="method-grid">
+  <section class="panel"><div class="eyebrow">Method</div><h2>How the reference is chosen</h2><p>Delhi video quotes are preferred when unit inference is plausible. Otherwise the national Agmarknet median is used. Prices are compared, never averaged.</p><div class="method-flow"><span>Wholesale evidence</span><b>→</b><span>Retail observation</span><b>→</b><span>Spread</span></div></section>
+  <section class="panel"><div class="eyebrow">Delivery</div><h2>Broadcast output</h2><p>The structured board above is the operator view. The same evidence can still be generated as permissioned message content from the CLI.</p><code>uv run vervana digest</code></section>
+</div>
+
+<details class="raw-output"><summary>View plain-text broadcast payload</summary><pre>{{ digest }}</pre></details>
+<p class="muted small">Not trading advice. National wholesale via Agmarknet (data.gov.in); DMI does not warrant accuracy. Delhi video rows are manually transcribed indicative quotes. Retail rows are manual quick-commerce observations.</p>
 {% endblock %}
