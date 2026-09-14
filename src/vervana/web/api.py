@@ -14,7 +14,7 @@ from collections import defaultdict, deque
 from datetime import date
 
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 
@@ -224,6 +224,36 @@ def intelligence(commodity: str, _key: str = Depends(require_api_key)):
     with session_scope() as s:
         report = build_report(s, commodity)
     return report.to_dict()
+@router.post("/admin/ingest/youtube-ground-proof")
+async def admin_ingest_youtube_ground_proof(
+    file: UploadFile = File(...),
+    _key: str = Depends(require_api_key),
+):
+    """Import a provenance-preserving YouTube mandi CSV/XLSX upload."""
+    from vervana.connectors.transcript import TranscriptConnector
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(422, "empty upload")
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(413, "upload exceeds 10 MB")
+    connector = TranscriptConnector()
+    try:
+        records = connector.records_from_upload(file.filename or "", content)
+    except (ValueError, UnicodeDecodeError) as exc:
+        raise HTTPException(422, str(exc)) from exc
+    if not records:
+        raise HTTPException(422, "no data rows found")
+    with session_scope() as session:
+        run, result = connector.ingest_with_run(session, records, mode="admin_upload")
+    return {
+        "run_id": run.id, "status": run.status,
+        "source_type": "youtube_ground_proof", "source_class": "quote_indicative",
+        "rows_in": result.rows_in, "accepted": result.accepted,
+        "skipped": result.rejected, "skip_reasons": result.reason_counts,
+    }
+
+
 @router.post("/admin/ingest/agmarknet")
 def admin_ingest_agmarknet(
     state: str = "Delhi",

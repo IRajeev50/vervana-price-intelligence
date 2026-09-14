@@ -163,6 +163,11 @@ def prices(
                     "commodity": cname,
                     "market": mname,
                     "source_class": obs.source_class.value,
+                    "source_label": (
+                        "Ground proof · YouTube quote"
+                        if '"source_type": "youtube_ground_proof"' in obs.raw_quote
+                        else obs.source_class.value
+                    ),
                     "low": _paise_to_rupee(obs.price_low_paise),
                     "high": _paise_to_rupee(obs.price_high_paise),
                     "canonical": _paise_to_rupee(obs.canonical_price_paise_per_kg),
