@@ -207,7 +207,7 @@ def ingest_agmarknet(
     state: str = "Delhi",
     max_records: int = 1000,
 ) -> None:
-    """Fetch live Agmarknet data (needs VERVANA_DATA_GOV_IN_API_KEY) and ingest it."""
+    """Fetch live Agmarknet 2.0 data (public api.agmarknet.gov.in, no key) and ingest it."""
     from vervana.connectors.agmarknet import AgmarknetConnector
     from vervana.db.engine import session_scope
 
@@ -216,8 +216,8 @@ def ingest_agmarknet(
         typer.echo(f"connector '{connector.name}' is disabled via config; nothing to do")
         return
     typer.echo(
-        f"fetching live Agmarknet data (state={state}, up to {max_records} records); "
-        "data.gov.in can be slow, this may take a few minutes..."
+        f"fetching live Agmarknet 2.0 data (state={state}, up to {max_records} records); "
+        "the Agmarknet API can be slow, this may take a few minutes..."
     )
     try:
         with session_scope() as session:
@@ -895,3 +895,4 @@ def serve(host: str = "127.0.0.1", port: int = 8000) -> None:
 
 if __name__ == "__main__":  # pragma: no cover
     app()
+
