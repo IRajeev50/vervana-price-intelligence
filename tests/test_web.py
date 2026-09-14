@@ -84,3 +84,18 @@ def test_digest_is_structured_and_keeps_provenance(client):
     assert "Evidence quality" in r.text
     assert "/evidence/" in r.text
     assert "View plain-text broadcast payload" in r.text
+
+
+def test_site_basic_auth_gate(client, monkeypatch):
+    # Unset by default: pages stay open (local dev behavior).
+    assert client.get("/").status_code == 200
+
+    monkeypatch.setenv("VERVANA_SITE_USER", "operator")
+    monkeypatch.setenv("VERVANA_SITE_PASSWORD", "s3cret")
+    r = client.get("/")
+    assert r.status_code == 401
+    assert r.headers["www-authenticate"].startswith("Basic")
+    r = client.get("/", auth=("operator", "s3cret"))
+    assert r.status_code == 200
+    # The JSON API stays key-gated and is not covered by the site gate.
+    assert client.get("/api/observations/1").status_code == 200
