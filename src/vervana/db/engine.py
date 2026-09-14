@@ -17,10 +17,6 @@ def _create_engine(url: str) -> Engine:
     engine_kwargs: dict[str, object] = {"future": True, "pool_pre_ping": True}
     if url.startswith("sqlite"):
         connect_args.update({"check_same_thread": False, "timeout": 15})
-        # Render's free instance has 512 MB and serves a low-concurrency demo. A
-        # single warm connection is enough; two short overflow connections keep
-        # concurrent page loads responsive without retaining a five-connection pool.
-        engine_kwargs.update({"pool_size": 1, "max_overflow": 2, "pool_recycle": 1800})
 
     engine = create_engine(url, connect_args=connect_args, **engine_kwargs)
     if url.startswith("sqlite"):
@@ -31,7 +27,6 @@ def _create_engine(url: str) -> Engine:
             cursor.execute("PRAGMA journal_mode=WAL")
             cursor.execute("PRAGMA synchronous=NORMAL")
             cursor.execute("PRAGMA busy_timeout=15000")
-            cursor.execute("PRAGMA temp_store=MEMORY")
             cursor.close()
 
     return engine
