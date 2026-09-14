@@ -12,7 +12,7 @@ import io
 import time
 from collections import defaultdict, deque
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 
@@ -251,6 +251,110 @@ def admin_ingest_agmarknet(
         raise HTTPException(
             status_code=502, detail=f"ingest failed: {type(exc).__name__}: {exc}"
         ) from exc
+    return {
+        "run_id": run.id,
+        "status": run.status,
+        "rows_in": result.rows_in,
+        "accepted": result.accepted,
+        "rejected": result.rejected,
+        "rejection_reasons": result.reason_counts,
+    }
+
+
+@router.post("/admin/supply/ndvi")
+def admin_supply_ndvi(
+    zone: str = "",
+    days: int = Query(30, ge=7, le=120),
+    _key: str = Depends(require_api_key),
+):
+    """Fetch Sentinel-2 NDVI for the watch zones and ingest anomaly signals.
+
+    Same code path as `uv run vervana supply ndvi`; this endpoint exists because
+    deployed free-tier hosts have no shell. Requires VERVANA_CDS_CLIENT_ID and
+    VERVANA_CDS_CLIENT_SECRET - without them nothing is fetched and nothing is
+    faked (409). Rows already stored for a date can repeat; the NDVI connector
+    has no dedupe key, so call it on a daily cadence at most.
+    """
+    from datetime import timedelta
+
+    from vervana.connectors.sentinel2 import Sentinel2NdviConnector
+    from vervana.supply.zones import load_zones
+    from vervana.time import now_utc
+
+    zones = load_zones()
+    if zone:
+        zones = [z for z in zones if z.zone == zone]
+        if not zones:
+            raise HTTPException(404, f"unknown zone '{zone}'")
+    conn = Sentinel2NdviConnector()
+    if not conn.enabled():
+        raise HTTPException(
+            409,
+            "sentinel2-ndvi is not configured - set VERVANA_CDS_CLIENT_ID and "
+            "VERVANA_CDS_CLIENT_SECRET",
+        )
+    today = now_utc().date()
+    current_from, current_to = today - timedelta(days=days), today
+    baseline_from = current_from.replace(year=current_from.year - 1)
+    baseline_to = current_to.replace(year=current_to.year - 1)
+    try:
+        records = conn.fetch_raw(
+            zones=zones,
+            current_from=current_from,
+            current_to=current_to,
+            baseline_from=baseline_from,
+            baseline_to=baseline_to,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502, detail=f"ndvi fetch failed: {type(exc).__name__}: {exc}"
+        ) from exc
+    with session_scope() as session:
+        run, result = conn.ingest_with_run(session, records, mode="api")
+    return {
+        "run_id": run.id,
+        "status": run.status,
+        "rows_in": result.rows_in,
+        "accepted": result.accepted,
+        "rejected": result.rejected,
+        "rejection_reasons": result.reason_counts,
+    }
+
+
+@router.post("/admin/supply/rainfall")
+async def admin_supply_rainfall(
+    request: Request,
+    _key: str = Depends(require_api_key),
+):
+    """Import IMD district rainfall as observed rainfall_deficit_pct signals.
+
+    Body: CSV text with columns district,state,date and dep_pct (or
+    actual_mm+normal_mm) - the same rows `uv run vervana supply rainfall-import`
+    accepts. With an empty body it fetches VERVANA_IMD_DISTRICT_RAINFALL_URL when
+    configured; IMD's public district bulletin is a PDF, so the CSV body is the
+    path that works today.
+    """
+    from vervana.connectors.imd import ImdRainfallConnector
+
+    conn = ImdRainfallConnector()
+    body = (await request.body()).decode("utf-8", errors="replace").strip()
+    try:
+        if body:
+            records = list(csv.DictReader(io.StringIO(body)))
+        else:
+            records = conn.fetch_raw()
+    except NotImplementedError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"rainfall fetch failed: {type(exc).__name__}: {exc}",
+        ) from exc
+    records = [r for r in records if any((v or "").strip() for v in r.values())]
+    if not records:
+        raise HTTPException(422, "no rows: send CSV text in the request body")
+    with session_scope() as session:
+        run, result = conn.ingest_with_run(session, records, mode="api")
     return {
         "run_id": run.id,
         "status": run.status,
