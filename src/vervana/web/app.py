@@ -7,15 +7,17 @@ attribution appear on every page (Part 7).
 
 from __future__ import annotations
 
+import base64
 import calendar as _calendar
 import csv
+import hmac
 import json
 from datetime import date, timedelta
 from pathlib import Path
 from types import SimpleNamespace as _NS
 
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
@@ -48,6 +50,31 @@ app.mount(
     StaticFiles(directory=str(Path(__file__).parent / "static")),
     name="static",
 )
+
+
+@app.middleware("http")
+async def site_basic_auth(request: Request, call_next):
+    """Optional HTTP basic auth gate for the HTML pages (deploy-only).
+
+    Active only when VERVANA_SITE_USER and VERVANA_SITE_PASSWORD are both set
+    (see .env.example); otherwise every page stays open, as in local dev. The
+    JSON API (/api/*) stays API-key gated and is not covered by this gate.
+    """
+    settings = get_settings()
+    if not (settings.site_user and settings.site_password) or request.url.path.startswith(
+        "/api/"
+    ):
+        return await call_next(request)
+    expected = "Basic " + base64.b64encode(
+        f"{settings.site_user}:{settings.site_password}".encode()
+    ).decode()
+    if not hmac.compare_digest(request.headers.get("authorization", ""), expected):
+        return PlainTextResponse(
+            "Authentication required",
+            status_code=401,
+            headers={"WWW-Authenticate": 'Basic realm="vervana"'},
+        )
+    return await call_next(request)
 
 
 def _paise_to_rupee(paise: int | None) -> str:

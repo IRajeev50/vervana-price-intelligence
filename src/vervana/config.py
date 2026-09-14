@@ -46,6 +46,13 @@ class Settings(BaseSettings):
     public_api_keys: str = "demo-key"
     public_api_rate_per_min: int = 60
 
+    # --- Optional site access gate (deploy-only) ---
+    # When BOTH are set, every HTML page requires HTTP basic auth. The JSON API
+    # (/api/*) stays API-key gated and is not covered by this gate. Leave unset
+    # in local dev so the dashboard stays frictionless.
+    site_user: str | None = None
+    site_password: str | None = None
+
     # --- Agmarknet/data.gov.in network tuning (safe defaults) ---
     # data.gov.in regularly takes >30s to answer a page, so the connector retries
     # timeouts/transport errors with bounded exponential backoff instead of failing
