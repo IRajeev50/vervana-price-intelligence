@@ -78,3 +78,15 @@ def test_export_streams_csv(client):
     assert r.status_code == 200
     assert "canonical_rupees_per_kg" in r.text
     assert "Potato" in r.text
+def test_admin_ingest_endpoint(monkeypatch, client):
+    # The endpoint runs the real connector; stub only the network fetch.
+    records = json.loads(FIXTURE.read_text(encoding="utf-8"))["records"]
+    monkeypatch.setattr(AgmarknetConnector, "fetch_raw", lambda self, **_: records)
+    assert client.post("/api/v1/admin/ingest/agmarknet").status_code == 401
+    r = client.post("/api/v1/admin/ingest/agmarknet", headers={"X-API-Key": "test-key"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["status"] == "ok"
+    # The client fixture already ingested these rows, so the endpoint's run
+    # recognises every previously-accepted row as a duplicate (no double-count).
+    assert body["rejection_reasons"].get("duplicate_already_ingested") == 4

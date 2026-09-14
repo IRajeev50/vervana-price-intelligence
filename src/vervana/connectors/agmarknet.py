@@ -1,21 +1,37 @@
-"""Agmarknet connector via data.gov.in (Part 4.1).
+"""Agmarknet connector via the official Agmarknet 2.0 public API (api.agmarknet.gov.in).
 
-Agmarknet's daily resource gives each market's daily min/max/modal price per commodity —
+History: this connector used the data.gov.in Agmarknet resource
+(9ef84268-d588-465a-a308-a864a43d0070). That resource went stale in November 2025 —
+its latest record is 04/11/2025 — which is why live imports kept returning empty.
+The working source is the Agmarknet 2.0 backend behind https://agmarknet.gov.in/home:
+public, keyless JSON endpoints, verified against live data (Sept 2026). The portal's
+full report endpoint (/daily-price-arrival/report) is captcha-gated, so we use the
+per-state daily report instead:
+
+    GET /v1/daily-price-arrival/filters                          (lookup tables)
+    GET /v1/prices-and-arrivals/commodity-market/daily-report-state
+        ?date=YYYY-MM-DD&state=<state_id>&includeExcel=false
+
+One call returns every commodity x market x variety reported in the state that day,
+with min/max/modal prices in Rs/quintal and arrivals in metric tonnes.
+
+Agmarknet's daily report gives each market's daily min/max/modal price per commodity —
 a daily *summary* of executed trades, so rows are `executed_summary` / `daily_summary`.
-Prices are ₹ per quintal (100 kg); quintal→kg is a defined conversion (seeded), so these
-rows get a real canonical ₹/kg.
+Prices are Rs per quintal (100 kg); quintal->kg is a defined conversion (seeded), so
+these rows get a real canonical Rs/kg.
 
 Robustness the spec calls for:
-  * API key from env, never committed.
-  * Pagination (1000-record cap), bounded retries with exponential backoff, 429 that
-    pauses rather than hot-retries, 400 raised loudly (bad key/params/schema).
-  * data.gov.in regularly takes >30s to answer a page, so read timeouts and other
-    transport errors are RETRIED (bounded, with backoff) instead of killing the run on
-    the first slow response. Timeout/retry budget is configurable via Settings
-    (VERVANA_AGMARKNET_* env vars).
+  * No API key — the 2.0 report endpoints are public, but they expect browser-like
+    Origin/Referer/User-Agent headers, without which the edge answers 403.
+  * Bounded retries with exponential backoff, 429 that pauses rather than hot-retries,
+    404 treated as "nothing reported that day" (not an error), other 4xx raised loudly.
+  * Each run walks back VERVANA_AGMARKNET_LOOKBACK_DAYS days (newest first) so a fresh
+    deploy backfills a week instead of a single day. Exact re-ingestion of an
+    already-stored row is skipped as a duplicate, so a recurring daily capture over
+    the lookback window never double-counts.
   * Raw payload stored before parsing.
-  * Field names are NOT standardised on data.gov.in, so mapping is case-insensitive over
-    candidate names and FAILS LOUDLY on a missing required field.
+  * Field names are NOT standardised across sources, so mapping is case-insensitive
+    over candidate names and FAILS LOUDLY on a missing required field.
   * Missing/zero prices rejected with a reason; market/commodity resolved only via
     VERIFIED registry aliases — unresolved rows are rejected (recorded), never guessed.
 """
@@ -24,11 +40,12 @@ from __future__ import annotations
 
 import json
 import time
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 import httpx
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from vervana.config import Settings, get_settings
@@ -36,6 +53,7 @@ from vervana.connectors.base import Connector, IngestResult
 from vervana.db.base import CanonicalType, SourceClass, TimeBasis
 from vervana.logging import get_logger
 from vervana.models.ingest import IngestRun
+from vervana.models.observations import PriceObservation
 from vervana.money import rupees_to_paise
 from vervana.repository.prices import insert_observation
 from vervana.repository.registry import resolve_by_name
@@ -44,11 +62,58 @@ from vervana.time import IST, now_utc
 
 log = get_logger("vervana.connectors.agmarknet")
 
-RESOURCE_ID = "9ef84268-d588-465a-a308-a864a43d0070"
-BASE_URL = f"https://api.data.gov.in/resource/{RESOURCE_ID}"
-PAGE_CAP = 1000  # data.gov.in per-call record cap
+API_BASE_URL = "https://api.agmarknet.gov.in/v1"
+PORTAL_URL = "https://agmarknet.gov.in"
+FILTERS_URL = f"{API_BASE_URL}/daily-price-arrival/filters"
+DAILY_STATE_REPORT_URL = f"{API_BASE_URL}/prices-and-arrivals/commodity-market/daily-report-state"
+# Recorded on each row as provenance.
+SOURCE_URL = DAILY_STATE_REPORT_URL
 
-# Candidate field names (case-insensitive) -> canonical key. data.gov.in is not
+DEFAULT_MAX_RECORDS = 1000  # default flattened-record cap per ingest run
+PRICE_UNIT_EXPECTED = "Rs./Quintal"
+
+# The 2.0 endpoints expect the portal's browser headers; without them the edge
+# answers 403 even though no login or captcha is involved.
+_HEADERS = {
+    "Accept": "application/json",
+    "Origin": PORTAL_URL,
+    "Referer": f"{PORTAL_URL}/",
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/149.0.0.0 Safari/537.36"
+    ),
+}
+
+# Agmarknet 2.0 display names -> the registry's verified alias text. Only mappings
+# verified against the live API live here; anything unmapped passes through
+# unchanged and, if the registry still cannot resolve it, is rejected (recorded).
+MARKET_NAME_MAP = {
+    "apmc azadpur": "Azadpur",
+    "apmc keshopur": "Keshopur",
+    "apmc najafgarh": "Najafgarh",
+    "apmc narela": "Narela",
+    "apmc shahdara": "Shahdara",
+    "fruit&vegetable market,gazipur apmc": "Ghazipur",
+}
+COMMODITY_NAME_MAP = {
+    # The 2.0 taxonomy splits ginger; the registry's "Ginger" seed (adrak) is the
+    # green cooking ginger traded in Delhi vegetable mandis.
+    "ginger(green)": "Ginger",
+    "ginger(dry)": "Ginger",
+    # 2.0 display names whose registry alias is the seed's own verified Hindi note:
+    # Okra "Bhindi / lady finger", Cucumber "Kheera / kakdi", Green Peas "Matar".
+    "bhindi(ladies finger)": "Okra",
+    "cucumbar(kheera)": "Cucumber",
+    "peas wet": "Green Peas",
+    # Agmarknet's own spelling error; the registry seeds "Radish".
+    "raddish": "Radish",
+    # Registry seeds Fenugreek Leaves ("Methi") and Pointed Gourd ("Parwal").
+    "methi(leaves)": "Fenugreek Leaves",
+    "pointed gourd(parval)": "Pointed Gourd",
+}
+
+# Candidate field names (case-insensitive) -> canonical key. Source feeds are not
 # standardised, so we accept the documented variants and fail loudly otherwise.
 FIELD_CANDIDATES: dict[str, tuple[str, ...]] = {
     "state": ("state",),
@@ -68,10 +133,6 @@ _DATE_FORMATS = ("%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y", "%d/%m/%y")
 
 class SchemaError(ValueError):
     """Raised when a required field is absent from a record (loud, not silent)."""
-
-
-class MissingApiKeyError(RuntimeError):
-    """Raised when a live fetch is attempted without VERVANA_DATA_GOV_IN_API_KEY."""
 
 
 class FetchError(RuntimeError):
@@ -125,6 +186,16 @@ def _price_paise(value: Any) -> int | None:
     return paise or None
 
 
+def _translate(name: Any, mapping: dict[str, str]) -> str:
+    """Map an Agmarknet 2.0 display name to the registry alias text, else pass through."""
+    text = str(name or "").strip()
+    return mapping.get(text.lower(), text)
+
+
+def _num_str(value: Any) -> str:
+    return "" if value is None else str(value)
+
+
 class AgmarknetConnector(Connector):
     name = "agmarknet"
 
@@ -136,62 +207,128 @@ class AgmarknetConnector(Connector):
         self,
         *,
         filters: dict[str, str] | None = None,
-        max_records: int = PAGE_CAP,
+        max_records: int = DEFAULT_MAX_RECORDS,
         settings: Settings | None = None,
         max_retries: int | None = None,
         backoff_base: float | None = None,
         timeout_seconds: float | None = None,
         sleep=time.sleep,
+        today: date | None = None,
     ) -> list[dict]:
+        """Fetch the last LOOKBACK days of one state's daily reports, newest first.
+
+        `filters["State"]` names the state (default Delhi). Records are flattened to
+        the canonical field shape that `ingest()` already understands (prices stay in
+        Rs/quintal; conversion happens downstream, unchanged).
+        """
         settings = settings or get_settings()
-        if not settings.data_gov_in_api_key:
-            raise MissingApiKeyError(
-                "VERVANA_DATA_GOV_IN_API_KEY is not set; cannot fetch live Agmarknet data."
-            )
-        # Network budget: Settings-backed, overridable per-call (tests, scripts).
-        # data.gov.in is often slow (routinely >30s/page), so the default read timeout
-        # is generous and transport failures are retried rather than fatal.
         retries = settings.agmarknet_max_retries if max_retries is None else max_retries
         backoff = settings.agmarknet_backoff_base_seconds if backoff_base is None else backoff_base
         timeout = settings.agmarknet_timeout_seconds if timeout_seconds is None else timeout_seconds
+        lookback = max(1, settings.agmarknet_lookback_days)
+        state_filter = (filters or {}).get("State") or (filters or {}).get("state") or "Delhi"
 
         records: list[dict] = []
-        offset = 0
-        with httpx.Client(timeout=httpx.Timeout(timeout, connect=15.0)) as client:
-            while len(records) < max_records:
-                limit = min(PAGE_CAP, max_records - len(records))
-                params = {
-                    "api-key": settings.data_gov_in_api_key,
-                    "format": "json",
-                    "offset": offset,
-                    "limit": limit,
-                }
-                for k, v in (filters or {}).items():
-                    params[f"filters[{k}]"] = v
-
-                page = self._get_page(client, params, retries, backoff, timeout, sleep)
-                batch = page.get("records", [])
-                if not batch:
-                    break
-                records.extend(batch)
-                offset += len(batch)
-                if len(batch) < limit:
+        with httpx.Client(
+            timeout=httpx.Timeout(timeout, connect=15.0), headers=_HEADERS
+        ) as client:
+            state_id, state_label = self._resolve_state_id(
+                client, state_filter, retries, backoff, timeout, sleep
+            )
+            anchor = today or now_utc().astimezone(IST).date()
+            for offset in range(lookback):
+                day = anchor - timedelta(days=offset)
+                payload = self._get_json(
+                    client,
+                    DAILY_STATE_REPORT_URL,
+                    params={
+                        "date": day.isoformat(),
+                        "state": state_id,
+                        "includeExcel": "false",
+                    },
+                    retries=retries,
+                    backoff_base=backoff,
+                    timeout=timeout,
+                    sleep=sleep,
+                )
+                if payload is None:
+                    log.info("agmarknet_no_data_for_day", date=day.isoformat())
+                    continue
+                records.extend(self._flatten_daily_report(payload, state_label, day))
+                if len(records) >= max_records:
+                    records = records[:max_records]
                     break
         return records
 
-    def _get_page(self, client, params, max_retries, backoff_base, timeout, sleep) -> dict:
-        """Fetch one page, retrying what is retryable within a bounded budget.
+    def _resolve_state_id(
+        self, client, state_name: str, retries, backoff, timeout, sleep
+    ) -> tuple[str, str]:
+        """Resolve a state name (e.g. 'Delhi') to the 2.0 state id via the filters table."""
+        payload = self._get_json(
+            client, FILTERS_URL, params=None,
+            retries=retries, backoff_base=backoff, timeout=timeout, sleep=sleep,
+        )
+        states = ((payload or {}).get("data") or {}).get("state_data") or []
+        target = state_name.strip().lower()
+        exact = [s for s in states if str(s.get("state_name", "")).strip().lower() == target]
+        partial = [
+            s for s in states if target and target in str(s.get("state_name", "")).strip().lower()
+        ]
+        matches = exact or partial
+        if len(matches) != 1:
+            raise FetchError(
+                f"could not resolve state {state_name!r} to exactly one Agmarknet state "
+                f"(matches: {[s.get('state_name') for s in matches]})"
+            )
+        return str(matches[0]["state_id"]), str(matches[0]["state_name"])
+
+    def _flatten_daily_report(self, payload: dict, state_label: str, day: date) -> list[dict]:
+        """Flatten one day's state report into canonical records (prices as Rs/quintal)."""
+        records: list[dict] = []
+        for group in payload.get("commodityGroups") or []:
+            for comm in group.get("commodities") or []:
+                commodity = _translate(comm.get("commodityName"), COMMODITY_NAME_MAP)
+                for mkt in comm.get("markets") or []:
+                    market = _translate(mkt.get("marketCenter"), MARKET_NAME_MAP)
+                    for row in mkt.get("data") or []:
+                        unit = str(row.get("unitOfPrice") or "").strip()
+                        if unit and unit.lower() != PRICE_UNIT_EXPECTED.lower():
+                            log.warning(
+                                "agmarknet_unexpected_price_unit",
+                                unit=unit, commodity=commodity, market=market,
+                            )
+                            continue
+                        records.append(
+                            {
+                                "state": state_label,
+                                "district": "",
+                                "market": market,
+                                "commodity": commodity,
+                                "variety": str(row.get("variety") or ""),
+                                "grade": "",
+                                "arrival_date": day.isoformat(),
+                                "min_price": _num_str(row.get("minimumPrice")),
+                                "max_price": _num_str(row.get("maximumPrice")),
+                                "modal_price": _num_str(row.get("modalPrice")),
+                            }
+                        )
+        return records
+
+    def _get_json(
+        self, client, url, *, params, retries, backoff_base, timeout, sleep
+    ) -> dict | None:
+        """GET one JSON document, retrying what is retryable within a bounded budget.
 
         Retryable: read/connect timeouts, other transport errors, 429, 5xx, and a 200
-        whose body is not JSON (data.gov.in's WAF sometimes answers an HTML error page
-        with a 200). NOT retryable: 4xx like 400/401/403 — a bad key or bad params will
-        fail identically on every retry, so those raise immediately.
+        whose body is not JSON (a WAF/proxy error page). 404 means the source has no
+        report for that day — returns None, not an error. Other 4xx (a blocked or
+        malformed request) raise immediately: they fail identically on every retry.
         """
         last_error: str | None = None
-        for attempt in range(max_retries):
+        for attempt in range(retries):
             wait = min(backoff_base * (2**attempt), 60.0)
             try:
-                resp = client.get(BASE_URL, params=params)
+                resp = client.get(url, params=params)
             except httpx.TimeoutException as exc:
                 last_error = f"{type(exc).__name__} after {timeout:g}s"
                 log.warning("agmarknet_timeout", attempt=attempt + 1, wait_s=wait)
@@ -210,6 +347,8 @@ class AgmarknetConnector(Connector):
                     log.warning("agmarknet_non_json_200", attempt=attempt + 1, wait_s=wait)
                     sleep(wait)
                     continue
+            if resp.status_code == 404:
+                return None
             if resp.status_code == 429:
                 # Pause rather than retry hot.
                 wait = backoff_base * (2 ** (attempt + 2))
@@ -225,14 +364,14 @@ class AgmarknetConnector(Connector):
                 )
                 sleep(wait)
                 continue
-            # 400/401/403: bad key/params/schema — do not retry, fail loudly.
+            # Other 4xx: blocked/malformed request — do not retry, fail loudly.
             resp.raise_for_status()
         raise FetchError(
-            f"data.gov.in did not answer after {max_retries} attempts "
-            f"(last error: {last_error or 'unknown'}). The service is often slow; "
+            f"Agmarknet 2.0 API did not answer after {retries} attempts "
+            f"(last error: {last_error or 'unknown'}). The service can be slow; "
             f"retry in a few minutes, or raise the budget via "
             f"VERVANA_AGMARKNET_TIMEOUT_SECONDS (now {timeout:g}s) and "
-            f"VERVANA_AGMARKNET_MAX_RETRIES (now {max_retries}) in .env."
+            f"VERVANA_AGMARKNET_MAX_RETRIES (now {retries}) in .env."
         )
 
     # --- parse/emit ------------------------------------------------------------
@@ -278,6 +417,34 @@ class AgmarknetConnector(Connector):
             if modal_out_of_range:
                 modal = None
 
+            observed_at = _parse_date(fields["arrival_date"])
+
+            # Never double-count: an identical row already stored (same commodity, market,
+            # day, prices, source class) is a duplicate, not a new observation. This makes
+            # a recurring capture over the lookback window idempotent.
+            dup_stmt = (
+                select(func.count())
+                .select_from(PriceObservation)
+                .where(
+                    PriceObservation.commodity_id == commodity_id,
+                    PriceObservation.market_id == market_id,
+                    PriceObservation.source_class == SourceClass.executed_summary,
+                    PriceObservation.time_basis == TimeBasis.daily_summary,
+                    PriceObservation.observed_at == observed_at,
+                    PriceObservation.price_low_paise == low,
+                    PriceObservation.price_high_paise == high,
+                    PriceObservation.unit_raw == "Quintal",
+                )
+            )
+            dup_stmt = dup_stmt.where(
+                PriceObservation.price_point_paise.is_(None)
+                if modal is None
+                else PriceObservation.price_point_paise == modal
+            )
+            if session.scalar(dup_stmt):
+                result.reject("duplicate_already_ingested", record)
+                continue
+
             conv = lookup_kg_equivalent(session, unit_raw="Quintal", commodity_id=commodity_id)
             canonical = None
             kg_eq = None
@@ -312,9 +479,9 @@ class AgmarknetConnector(Connector):
                         canonical_price_paise_per_kg=canonical,
                         unit_kg_equivalent=kg_eq,
                         unit_conversion_confidence=conf,
-                        source_url=BASE_URL,
+                        source_url=SOURCE_URL,
                         raw_quote=json.dumps(record, ensure_ascii=False),
-                        observed_at=_parse_date(fields["arrival_date"]),
+                        observed_at=observed_at,
                         time_basis=TimeBasis.daily_summary,
                     )
             except IntegrityError as exc:
@@ -327,8 +494,8 @@ class AgmarknetConnector(Connector):
     def ingest_with_run(self, session, records: list[dict], *, mode: str, raw_payload_path=None):
         """Ingest already-fetched records AND record an ingest_run.
 
-        Used by the daily-capture path (records fetched out-of-process via curl), so
-        every capture — even one that returns zero Delhi rows — leaves a dated run row
+        Used by the file/capture path (records fetched out-of-process), so every
+        capture — even one that returns zero Delhi rows — leaves a dated run row
         that becomes the coverage history.
         """
         run = IngestRun(
