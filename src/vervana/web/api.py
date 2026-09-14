@@ -257,7 +257,10 @@ async def admin_ingest_youtube_ground_proof(
 @router.post("/admin/ingest/agmarknet")
 def admin_ingest_agmarknet(
     state: str = "Delhi",
-    max_records: int = Query(5000, le=10000),
+    # Big states report ~1.4k flattened rows/day (all markets x commodities), so a
+    # 31-day chunk needs headroom far above the old 10k cap; registry filtering keeps
+    # only seeded markets/commodities, so accepted rows stay bounded.
+    max_records: int = Query(5000, le=250000),
     start_date: date | None = Query(default=None),
     end_date: date | None = Query(default=None),
     _key: str = Depends(require_api_key),
