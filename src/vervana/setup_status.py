@@ -26,7 +26,6 @@ from vervana.models.observations import PriceObservation
 # the dashboard, and the docs cannot drift apart.
 FIRST_INGEST_COMMAND = "uv run vervana ingest agmarknet --state Delhi --max-records 100"
 SETUP_COMMAND = "uv run vervana setup"
-KEY_ENV_VAR = "VERVANA_DATA_GOV_IN_API_KEY"
 
 
 @dataclass(frozen=True)
@@ -64,29 +63,14 @@ def collect_setup_steps(session: Session, settings: Settings) -> list[SetupStep]
         )
     )
 
-    key_ok = bool(settings.data_gov_in_api_key)
-    steps.append(
-        SetupStep(
-            key="api_key",
-            label="data.gov.in API key configured",
-            ok=key_ok,
-            detail=(
-                "key is present in the environment"
-                if key_ok
-                else f"no key found - add {KEY_ENV_VAR} to .env (the value is never displayed)"
-            ),
-            action=None if key_ok else f"add {KEY_ENV_VAR}=<your key> to .env",
-        )
-    )
-
     live_ok = observations > 0
     if live_ok:
         live_detail = f"{observations:,} price observations captured"
         live_action = None
     elif last_run is not None and last_run.status == "failed":
         live_detail = (
-            "no live prices yet - the last capture failed; data.gov.in can be very slow, "
-            "so retry (the connector now waits up to 120s per request and retries)"
+            "no live prices yet - the last capture failed; retry - the connector pulls the "
+            "official Agmarknet 2.0 public API (no key required)"
         )
         live_action = FIRST_INGEST_COMMAND
     elif last_run is not None and last_run.status == "ok" and last_run.accepted == 0:
