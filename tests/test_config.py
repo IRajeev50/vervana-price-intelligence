@@ -14,16 +14,13 @@ def test_defaults_are_safe_without_secrets(monkeypatch: pytest.MonkeyPatch) -> N
             monkeypatch.delenv(key, raising=False)
     settings = Settings(_env_file=None)
     assert settings.environment == "development"
-    assert settings.data_gov_in_api_key is None  # secret absent -> None
     assert settings.timezone == PROJECT_TIMEZONE
 
 
 def test_env_overrides(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("VERVANA_ENVIRONMENT", "production")
-    monkeypatch.setenv("VERVANA_DATA_GOV_IN_API_KEY", "secret-from-env")
     settings = Settings(_env_file=None)
     assert settings.environment == "production"
-    assert settings.data_gov_in_api_key == "secret-from-env"
 
 
 def test_timezone_is_pinned() -> None:
