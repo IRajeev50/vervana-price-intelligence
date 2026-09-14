@@ -14,6 +14,7 @@ canonical ₹/kg stays NULL rather than being guessed (Part 3.3).
 from __future__ import annotations
 
 import csv
+import io
 import json
 import re
 from pathlib import Path
@@ -69,8 +70,26 @@ class TranscriptConnector(Connector):
         )
 
     def import_csv(self, session, path: str | Path) -> IngestResult:
-        with Path(path).open(encoding="utf-8") as fh:
+        with Path(path).open(encoding="utf-8-sig") as fh:
             return self.ingest(session, list(csv.DictReader(fh)), mode="csv")
+
+    @staticmethod
+    def records_from_upload(filename: str, content: bytes) -> list[dict]:
+        """Parse the repeatable ground-proof CSV/XLSX format in memory."""
+        suffix = Path(filename or "").suffix.lower()
+        if suffix == ".csv":
+            return list(csv.DictReader(io.StringIO(content.decode("utf-8-sig"))))
+        if suffix in {".xlsx", ".xlsm"}:
+            from openpyxl import load_workbook
+
+            book = load_workbook(io.BytesIO(content), read_only=True, data_only=True)
+            rows = book.active.iter_rows(values_only=True)
+            try:
+                headers = [str(v).strip() if v is not None else "" for v in next(rows)]
+            except StopIteration:
+                return []
+            return [dict(zip(headers, row, strict=False)) for row in rows if any(v is not None for v in row)]
+        raise ValueError("unsupported file type: send .xlsx, .xlsm, or .csv")
 
     def ingest(self, session, records: list[dict], *, mode: str = "csv") -> IngestResult:
         result = IngestResult(rows_in=len(records))
@@ -113,6 +132,46 @@ class TranscriptConnector(Connector):
             if unit_raw.lower() in _KG_UNITS:
                 canonical = round((lo + hi) / 2)
 
+            source_url = (rec.get(C_VIDEO) or "").strip()
+            raw_quote = (rec.get(C_QUOTE) or "").strip()
+            if not source_url:
+                result.reject("missing_source_url", rec)
+                continue
+            if not raw_quote:
+                result.reject("missing_raw_quote", rec)
+                continue
+            evidence_json = json.dumps(
+                {
+                    "source_type": "youtube_ground_proof",
+                    "quote": raw_quote,
+                    "channel_mandi": rec.get(C_CHANNEL),
+                    "variety": rec.get(C_VARIETY),
+                    "commentary": rec.get(C_COMMENTARY),
+                    "arrivals": rec.get(C_ARRIVALS),
+                    "carryover": rec.get(C_CARRYOVER),
+                    "source_flag": rec.get(C_FLAG),
+                    "detected_flags": flags,
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+            observed_at = self._date(rec.get(C_DATE))
+            from sqlalchemy import select
+            from vervana.models.observations import PriceObservation
+            duplicate = session.scalar(
+                select(PriceObservation.id).where(
+                    PriceObservation.commodity_id == commodity_id,
+                    PriceObservation.market_id == market_id,
+                    PriceObservation.source_class == SourceClass.quote_indicative,
+                    PriceObservation.observed_at == observed_at,
+                    PriceObservation.source_url == source_url,
+                    PriceObservation.raw_quote == evidence_json,
+                ).limit(1)
+            )
+            if duplicate is not None:
+                result.reject("duplicate_already_ingested", rec)
+                continue
+
             insert_observation(
                 session,
                 commodity_id=commodity_id,
@@ -124,20 +183,9 @@ class TranscriptConnector(Connector):
                 unit_raw=unit_raw,
                 canonical_price_paise_per_kg=canonical,
                 unit_conversion_confidence=1.0 if canonical is not None else None,
-                source_url=(rec.get(C_VIDEO) or "").strip() or "transcript:unknown",
-                raw_quote=json.dumps(
-                    {
-                        "quote": rec.get(C_QUOTE),
-                        "variety": rec.get(C_VARIETY),
-                        "commentary": rec.get(C_COMMENTARY),
-                        "arrivals": rec.get(C_ARRIVALS),
-                        "carryover": rec.get(C_CARRYOVER),
-                        "source_flag": rec.get(C_FLAG),
-                        "detected_flags": flags,
-                    },
-                    ensure_ascii=False,
-                ),
-                observed_at=self._date(rec.get(C_DATE)),
+                source_url=source_url,
+                raw_quote=evidence_json,
+                observed_at=observed_at,
                 time_basis=TimeBasis.single_daily_quote,
             )
             result.accept()
