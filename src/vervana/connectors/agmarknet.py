@@ -214,8 +214,16 @@ class AgmarknetConnector(Connector):
         timeout_seconds: float | None = None,
         sleep=time.sleep,
         today: date | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
+        request_delay_seconds: float = 0.5,
     ) -> list[dict]:
-        """Fetch the last LOOKBACK days of one state's daily reports, newest first.
+        """Fetch a date range of one state's daily reports, newest first.
+
+        By default this fetches the configured LOOKBACK window ending today. Operators
+        can instead pass both ``start_date`` and ``end_date`` for a bounded historical
+        backfill. A short delay between daily requests keeps month-sized backfills gentle
+        on Agmarknet and on small deployment instances.
 
         `filters["State"]` names the state (default Delhi). Records are flattened to
         the canonical field shape that `ingest()` already understands (prices stay in
@@ -225,6 +233,12 @@ class AgmarknetConnector(Connector):
         retries = settings.agmarknet_max_retries if max_retries is None else max_retries
         backoff = settings.agmarknet_backoff_base_seconds if backoff_base is None else backoff_base
         timeout = settings.agmarknet_timeout_seconds if timeout_seconds is None else timeout_seconds
+        if (start_date is None) != (end_date is None):
+            raise ValueError("start_date and end_date must be provided together")
+        if start_date is not None and start_date > end_date:
+            raise ValueError("start_date must be on or before end_date")
+        if request_delay_seconds < 0:
+            raise ValueError("request_delay_seconds cannot be negative")
         lookback = max(1, settings.agmarknet_lookback_days)
         state_filter = (filters or {}).get("State") or (filters or {}).get("state") or "Delhi"
 
@@ -235,8 +249,13 @@ class AgmarknetConnector(Connector):
             state_id, state_label = self._resolve_state_id(
                 client, state_filter, retries, backoff, timeout, sleep
             )
-            anchor = today or now_utc().astimezone(IST).date()
-            for offset in range(lookback):
+            anchor = end_date or today or now_utc().astimezone(IST).date()
+            days_to_fetch = (
+                (end_date - start_date).days + 1
+                if start_date is not None and end_date is not None
+                else lookback
+            )
+            for offset in range(days_to_fetch):
                 day = anchor - timedelta(days=offset)
                 payload = self._get_json(
                     client,
@@ -258,6 +277,8 @@ class AgmarknetConnector(Connector):
                 if len(records) >= max_records:
                     records = records[:max_records]
                     break
+                if request_delay_seconds and offset + 1 < days_to_fetch:
+                    sleep(request_delay_seconds)
         return records
 
     def _resolve_state_id(
