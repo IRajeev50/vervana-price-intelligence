@@ -11,6 +11,8 @@ import csv
 import io
 import time
 from collections import defaultdict, deque
+from datetime import date
+
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
@@ -225,7 +227,9 @@ def intelligence(commodity: str, _key: str = Depends(require_api_key)):
 @router.post("/admin/ingest/agmarknet")
 def admin_ingest_agmarknet(
     state: str = "Delhi",
-    max_records: int = Query(2000, le=10000),
+    max_records: int = Query(5000, le=10000),
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
     _key: str = Depends(require_api_key),
 ):
     """Trigger a live Agmarknet 2.0 ingest run.
@@ -237,13 +241,26 @@ def admin_ingest_agmarknet(
     """
     from vervana.connectors.agmarknet import AgmarknetConnector
 
+    if (start_date is None) != (end_date is None):
+        raise HTTPException(422, "start_date and end_date must be provided together")
+    if start_date is not None:
+        if start_date > end_date:
+            raise HTTPException(422, "start_date must be on or before end_date")
+        if (end_date - start_date).days > 30:
+            raise HTTPException(422, "historical backfill chunks are limited to 31 days")
+
     connector = AgmarknetConnector()
     if not connector.enabled():
         raise HTTPException(409, "connector 'agmarknet' is disabled via config")
     try:
         with session_scope() as session:
             run, result = connector.run(
-                session, mode="daily", filters={"State": state}, max_records=max_records
+                session,
+                mode="backfill" if start_date is not None else "daily",
+                filters={"State": state},
+                max_records=max_records,
+                start_date=start_date,
+                end_date=end_date,
             )
     except Exception as exc:
         with session_scope() as session:
