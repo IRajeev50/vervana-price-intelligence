@@ -12,8 +12,9 @@ Honesty rules:
 - the NDVI mean is a vegetation estimate over a ~10 km box around the zone
   point, not a measurement of traded supply; the signal note carries both means
   so the number can be audited.
-- request shape follows the CDSE Statistical API docs; verify against the
-  current docs on the first live run (endpoint is a setting for that reason).
+- request shape verified against the live CDSE Statistical API on
+  2026-09-14: the evalscript must emit a separate dataMask output, or the
+  API rejects the request with 400.
 """
 
 from __future__ import annotations
@@ -35,12 +36,15 @@ NDVI_EVALSCRIPT = """
 function setup() {
   return {
     input: [{ bands: ["B04", "B08", "dataMask"] }],
-    output: { id: "default", bands: 1, sampleType: "FLOAT32" }
+    output: [
+      { id: "default", bands: 1, sampleType: "FLOAT32" },
+      { id: "dataMask", bands: 1 }
+    ]
   };
 }
 function evaluatePixel(s) {
-  if (s.dataMask === 0) { return [NaN]; }
-  return [(s.B08 - s.B04) / (s.B08 + s.B04)];
+  var ndvi = (s.B08 - s.B04) / (s.B08 + s.B04);
+  return { default: [ndvi], dataMask: [s.dataMask] };
 }
 """.strip()
 
