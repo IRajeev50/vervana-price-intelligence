@@ -1,0 +1,51 @@
+name: daily-ingest
+
+# Keeps the hosted platform fresh without a shell: Render's free tier has no cron and
+# sleeps, so this scheduled workflow calls the platform's own admin ingest endpoints.
+# Every call is idempotent (Agmarknet rows dedupe per record), so a daily re-run is
+# safe. Auth: the X-API-Key header against VERVANA_PUBLIC_API_KEYS on the host.
+#
+# Setup (one time): repo Settings > Secrets and variables > Actions > add
+#   VERVANA_ADMIN_API_KEY = one of the VERVANA_PUBLIC_API_KEYS values set on Render.
+
+on:
+  schedule:
+    # 22:05 IST (16:35 UTC) daily - after the day's Agmarknet 2.0 mandi reports land.
+    - cron: "35 16 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Daily Agmarknet ingest (all tracked states) + NDVI feed
+        env:
+          BASE: https://vervana-price-intelligence.onrender.com
+          API_KEY: ${{ secrets.VERVANA_ADMIN_API_KEY }}
+        run: |
+          set -u
+          fail=0
+          call () {
+            name="$1"; url="$2"
+            echo "=== $name"
+            code=$(curl -sS --max-time 600 --retry 2 --retry-all-errors --retry-delay 30 \
+              -o /tmp/resp.json -w '%{http_code}' \
+              -X POST -H "X-API-Key: $API_KEY" "$url") || code=000
+            echo "http=$code"; cat /tmp/resp.json 2>/dev/null; echo
+            case "$code" in
+              200) ;;
+              409) echo "WARN: $name not configured on host (409) - skipped" ;;
+              *) fail=1 ;;
+            esac
+          }
+          for state in Delhi Maharashtra "Uttar Pradesh" Karnataka "Madhya Pradesh" Punjab "West Bengal"; do
+            enc=${state// /%20}
+            call "agmarknet:$state" "$BASE/api/v1/admin/ingest/agmarknet?state=$enc&max_records=5000"
+          done
+          # Sentinel-2 NDVI: the endpoint allows a daily cadence at most; 409 means the
+          # CDSE credentials are not set on the host, which is a config gap, not a failure.
+          call "supply:ndvi" "$BASE/api/v1/admin/supply/ndvi?days=30"
+          # Rainfall is intentionally not automated: the endpoint needs an IMD CSV body
+          # (the public bulletin is a PDF) and has no fetch path configured yet.
+          exit $fail
