@@ -90,3 +90,32 @@ def test_admin_ingest_endpoint(monkeypatch, client):
     # The client fixture already ingested these rows, so the endpoint's run
     # recognises every previously-accepted row as a duplicate (no double-count).
     assert body["rejection_reasons"].get("duplicate_already_ingested") == 4
+
+
+
+def test_admin_ingest_accepts_bounded_date_range(monkeypatch, client):
+    captured = {}
+
+    def fake_fetch(self, **kwargs):
+        captured.update(kwargs)
+        return []
+
+    monkeypatch.setattr(AgmarknetConnector, "fetch_raw", fake_fetch)
+    r = client.post(
+        "/api/v1/admin/ingest/agmarknet?start_date=2026-01-01&end_date=2026-01-31",
+        headers={"X-API-Key": "test-key"},
+    )
+    assert r.status_code == 200
+    assert captured["start_date"].isoformat() == "2026-01-01"
+    assert captured["end_date"].isoformat() == "2026-01-31"
+
+
+def test_admin_ingest_rejects_unbounded_or_oversized_date_range(client):
+    h = {"X-API-Key": "test-key"}
+    assert client.post(
+        "/api/v1/admin/ingest/agmarknet?start_date=2026-01-01", headers=h
+    ).status_code == 422
+    assert client.post(
+        "/api/v1/admin/ingest/agmarknet?start_date=2026-01-01&end_date=2026-02-01",
+        headers=h,
+    ).status_code == 422
