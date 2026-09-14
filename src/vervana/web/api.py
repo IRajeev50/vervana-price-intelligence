@@ -222,3 +222,40 @@ def intelligence(commodity: str, _key: str = Depends(require_api_key)):
     with session_scope() as s:
         report = build_report(s, commodity)
     return report.to_dict()
+@router.post("/admin/ingest/agmarknet")
+def admin_ingest_agmarknet(
+    state: str = "Delhi",
+    max_records: int = Query(2000, le=10000),
+    _key: str = Depends(require_api_key),
+):
+    """Trigger a live Agmarknet 2.0 ingest run.
+
+    Deployed free-tier hosts have no shell, so this endpoint is how an operator (or a
+    scheduler) kicks off a capture: it runs the same connector as
+    `uv run vervana ingest agmarknet`. Idempotent per row: already-stored rows are
+    skipped as duplicates, so a daily call is safe.
+    """
+    from vervana.connectors.agmarknet import AgmarknetConnector
+
+    connector = AgmarknetConnector()
+    if not connector.enabled():
+        raise HTTPException(409, "connector 'agmarknet' is disabled via config")
+    try:
+        with session_scope() as session:
+            run, result = connector.run(
+                session, mode="daily", filters={"State": state}, max_records=max_records
+            )
+    except Exception as exc:
+        with session_scope() as session:
+            connector.record_failure(session, mode="daily", exc=exc)
+        raise HTTPException(
+            status_code=502, detail=f"ingest failed: {type(exc).__name__}: {exc}"
+        ) from exc
+    return {
+        "run_id": run.id,
+        "status": run.status,
+        "rows_in": result.rows_in,
+        "accepted": result.accepted,
+        "rejected": result.rejected,
+        "rejection_reasons": result.reason_counts,
+    }
