@@ -53,14 +53,17 @@ class Settings(BaseSettings):
     site_user: str | None = None
     site_password: str | None = None
 
-    # --- Agmarknet/data.gov.in network tuning (safe defaults) ---
-    # data.gov.in regularly takes >30s to answer a page, so the connector retries
-    # timeouts/transport errors with bounded exponential backoff instead of failing
-    # the run on the first slow response. Raise these locally (in .env) only if
-    # captures keep timing out.
+    # --- Agmarknet 2.0 public API (api.agmarknet.gov.in) ---
+    # Keyless: the 2.0 report endpoints are public (browser-like headers required).
+    # The old data.gov.in resource went stale in Nov 2025, so the connector was
+    # repointed here. Each ingest run walks back `agmarknet_lookback_days` days
+    # (newest first) so a fresh deploy backfills a week, and transient failures are
+    # retried with bounded exponential backoff. Raise the timeout locally (in .env)
+    # only if captures keep timing out.
     agmarknet_timeout_seconds: float = 120.0
     agmarknet_max_retries: int = 4
     agmarknet_backoff_base_seconds: float = 2.0
+    agmarknet_lookback_days: int = 7
 
     # --- Datastore ---
     # Defaults to a local SQLite file so nothing is required to import/run in dev
@@ -78,7 +81,7 @@ class Settings(BaseSettings):
     # IMD district rainfall: optional machine-readable CSV endpoint. The public
     # bulletin is a PDF; without this, use `vervana supply rainfall-import`.
     imd_district_rainfall_url: str | None = None
-    # Google Agricultural Understanding (ALU/AMED) - partner access pending.
+    # Google Agricultural Understanding (ALU/AMED)-partner access pending.
     # Endpoint URLs are not public; set them from the partner documentation when
     # access is granted. Empty => the scaffold reports "access pending" and
     # fetches nothing.
@@ -87,9 +90,6 @@ class Settings(BaseSettings):
     google_amed_api_url: str | None = None
 
     # --- Secrets (no real defaults; must come from env when the feature needs them) ---
-    # data.gov.in API key for Agmarknet ingest (M2). Absent in dev/tests.
-    data_gov_in_api_key: str | None = None
-
 
 def get_settings() -> Settings:
     """Return a freshly-loaded Settings instance.
@@ -99,3 +99,4 @@ def get_settings() -> Settings:
     onto the returned value themselves.
     """
     return Settings()
+
