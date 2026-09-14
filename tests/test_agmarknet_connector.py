@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from vervana.connectors.agmarknet import (
+    SOURCE_URL,
     AgmarknetConnector,
     SchemaError,
     map_fields,
@@ -91,6 +93,18 @@ def test_ingest_accepts_good_rejects_bad(seeded: Session):
     assert any("range_disorder" in r for r in reasons)  # min>max
 
 
+def test_ingest_skips_exact_duplicates(seeded: Session):
+    # A recurring capture over the lookback window re-fetches already-stored days;
+    # those rows must be skipped, never double-counted.
+    first = AgmarknetConnector().ingest(seeded, _records(), mode="test")
+    assert first.accepted == 4
+    second = AgmarknetConnector().ingest(seeded, _records(), mode="test")
+    assert second.accepted == 0
+    assert second.reason_counts.get("duplicate_already_ingested") == 4
+    # still exactly one stored observation per unique row
+    assert seeded.scalar(select(func.count()).select_from(PriceObservation)) == 4
+
+
 def test_canonical_quintal_to_kg(seeded: Session):
     AgmarknetConnector().ingest(
         seeded, _records()[:1], mode="test"
@@ -101,7 +115,8 @@ def test_canonical_quintal_to_kg(seeded: Session):
     assert o.unit_raw == "Quintal"
     assert o.price_point_paise == 135000  # 1350 rupees/quintal in paise
     assert o.canonical_price_paise_per_kg == 1350  # /100 kg = 13.50 rupees/kg
-    assert o.source_url.startswith("https://api.data.gov.in/resource/")
+    assert o.source_url == SOURCE_URL
+    assert SOURCE_URL.startswith("https://api.agmarknet.gov.in/v1/")
     assert "Potato" in o.raw_quote
 
 
@@ -139,26 +154,17 @@ def test_connector_disabled_via_config(monkeypatch):
     assert AgmarknetConnector().enabled(settings) is False
 
 
-def test_missing_api_key_raises(monkeypatch, seeded: Session):
-    from vervana.config import Settings
-    from vervana.connectors.agmarknet import MissingApiKeyError
-
-    monkeypatch.delenv("VERVANA_DATA_GOV_IN_API_KEY", raising=False)
-    settings = Settings(_env_file=None)
-    with pytest.raises(MissingApiKeyError):
-        AgmarknetConnector().fetch_raw(settings=settings)
-
-
 # ---------------------------------------------------------------------------
-# Network resilience: data.gov.in is slow, so timeouts/transport errors are
-# retried within a bounded budget instead of killing the run.
+# Network resilience: the Agmarknet 2.0 API can be slow, so timeouts/transport
+# errors are retried within a bounded budget instead of killing the run.
+# Every fetch makes one filters call (state lookup) plus one report call per day.
 # ---------------------------------------------------------------------------
 
 
 class _StubResponse:
     def __init__(self, status_code=200, payload=None, body_raises=False):
         self.status_code = status_code
-        self._payload = payload if payload is not None else {"records": []}
+        self._payload = payload if payload is not None else {"data": {}}
         self._body_raises = body_raises
 
     def json(self):
@@ -196,10 +202,51 @@ class _FlakyClient:
         return outcome
 
 
-def _settings_with_key():
+def _filters_payload():
+    return {"data": {"state_data": [{"state_id": 25, "state_name": "NCT of Delhi"}]}}
+
+
+def _report_payload():
+    return {
+        "success": True,
+        "commodityGroups": [
+            {
+                "CommodityGroup": "Vegetables",
+                "commodities": [
+                    {
+                        "commodityName": "Onion",
+                        "markets": [
+                            {
+                                "marketCenter": "APMC Azadpur",
+                                "total_arrivals": 861.0,
+                                "data": [
+                                    {
+                                        "arrivals": 861.0,
+                                        "unitOfArrivals": "Metric Tonnes",
+                                        "variety": "Onion",
+                                        "minimumPrice": 2000.0,
+                                        "maximumPrice": 4500.0,
+                                        "modalPrice": 3281.0,
+                                        "unitOfPrice": "Rs./Quintal",
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+
+
+def _settings(**overrides):
     from vervana.config import Settings
 
-    return Settings(_env_file=None, data_gov_in_api_key="test-key")
+    overrides.setdefault("agmarknet_lookback_days", 1)
+    return Settings(_env_file=None, **overrides)
+
+
+_TODAY = date(2026, 9, 13)
 
 
 def test_fetch_retries_read_timeout_then_succeeds(monkeypatch):
@@ -210,15 +257,29 @@ def test_fetch_retries_read_timeout_then_succeeds(monkeypatch):
     client = _FlakyClient(
         [
             httpx.ReadTimeout("slow server"),
-            _StubResponse(200, {"records": [{"market": "Azadpur"}]}),
+            _StubResponse(200, _filters_payload()),
+            _StubResponse(200, _report_payload()),
         ]
     )
     monkeypatch.setattr(mod.httpx, "Client", client)
     sleeps: list[float] = []
-    records = AgmarknetConnector().fetch_raw(settings=_settings_with_key(), sleep=sleeps.append)
-    assert records == [{"market": "Azadpur"}]
-    assert client.calls == 2  # one timed-out attempt, one success
+    records = AgmarknetConnector().fetch_raw(settings=_settings(), sleep=sleeps.append, today=_TODAY)
+    assert client.calls == 3  # one timed-out filters attempt, filters, then the report
     assert sleeps == [2.0]  # backoff_base * 2**0, from settings default
+    assert records == [
+        {
+            "state": "NCT of Delhi",
+            "district": "",
+            "market": "Azadpur",  # "APMC Azadpur" translated to the registry alias
+            "commodity": "Onion",
+            "variety": "Onion",
+            "grade": "",
+            "arrival_date": "2026-09-13",
+            "min_price": "2000.0",
+            "max_price": "4500.0",
+            "modal_price": "3281.0",
+        }
+    ]
 
 
 def test_fetch_exhausts_retries_with_clear_error(monkeypatch):
@@ -231,7 +292,7 @@ def test_fetch_exhausts_retries_with_clear_error(monkeypatch):
     monkeypatch.setattr(mod.httpx, "Client", client)
     sleeps: list[float] = []
     with pytest.raises(FetchError) as excinfo:
-        AgmarknetConnector().fetch_raw(settings=_settings_with_key(), sleep=sleeps.append)
+        AgmarknetConnector().fetch_raw(settings=_settings(), sleep=sleeps.append, today=_TODAY)
     msg = str(excinfo.value)
     assert "VERVANA_AGMARKNET_TIMEOUT_SECONDS" in msg
     assert "ReadTimeout" in msg
@@ -245,16 +306,17 @@ def test_fetch_retries_non_json_200(monkeypatch):
     client = _FlakyClient(
         [
             _StubResponse(200, body_raises=True),  # WAF HTML page with a 200
-            _StubResponse(200, {"records": [{"market": "Azadpur"}]}),
+            _StubResponse(200, _filters_payload()),
+            _StubResponse(200, _report_payload()),
         ]
     )
     monkeypatch.setattr(mod.httpx, "Client", client)
-    records = AgmarknetConnector().fetch_raw(settings=_settings_with_key(), sleep=lambda s: None)
-    assert records == [{"market": "Azadpur"}]
-    assert client.calls == 2
+    records = AgmarknetConnector().fetch_raw(settings=_settings(), sleep=lambda s: None, today=_TODAY)
+    assert len(records) == 1
+    assert client.calls == 3
 
 
-def test_fetch_bad_key_fails_immediately_without_retry(monkeypatch):
+def test_fetch_4xx_fails_immediately_without_retry(monkeypatch):
     from vervana.connectors import agmarknet as mod
 
     client = _FlakyClient([_StubResponse(403)] * 4)
@@ -262,8 +324,51 @@ def test_fetch_bad_key_fails_immediately_without_retry(monkeypatch):
     import httpx
 
     with pytest.raises(httpx.HTTPStatusError):
-        AgmarknetConnector().fetch_raw(settings=_settings_with_key(), sleep=lambda s: None)
+        AgmarknetConnector().fetch_raw(settings=_settings(), sleep=lambda s: None, today=_TODAY)
     assert client.calls == 1  # 4xx is not retried
+
+
+def test_fetch_unknown_state_fails_loudly(monkeypatch):
+    from vervana.connectors import agmarknet as mod
+    from vervana.connectors.agmarknet import FetchError
+
+    client = _FlakyClient(
+        [_StubResponse(200, {"data": {"state_data": [{"state_id": 1, "state_name": "Goa"}]}})]
+    )
+    monkeypatch.setattr(mod.httpx, "Client", client)
+    with pytest.raises(FetchError, match="could not resolve state"):
+        AgmarknetConnector().fetch_raw(settings=_settings(), sleep=lambda s: None, today=_TODAY)
+    assert client.calls == 1  # a bad state name is not retried
+
+
+def test_fetch_404_day_is_skipped_not_fatal(monkeypatch):
+    from vervana.connectors import agmarknet as mod
+
+    client = _FlakyClient(
+        [
+            _StubResponse(200, _filters_payload()),
+            _StubResponse(404),  # nothing reported on the 13th
+            _StubResponse(200, _report_payload()),  # the 12th has data
+        ]
+    )
+    monkeypatch.setattr(mod.httpx, "Client", client)
+    records = AgmarknetConnector().fetch_raw(
+        settings=_settings(agmarknet_lookback_days=2), sleep=lambda s: None, today=_TODAY
+    )
+    assert client.calls == 3
+    assert [r["arrival_date"] for r in records] == ["2026-09-12"]
+
+
+def test_fetch_translates_agmarknet2_display_names(monkeypatch):
+    from vervana.connectors import agmarknet as mod
+
+    payload = _report_payload()
+    payload["commodityGroups"][0]["commodities"][0]["commodityName"] = "Ginger(Green)"
+    client = _FlakyClient([_StubResponse(200, _filters_payload()), _StubResponse(200, payload)])
+    monkeypatch.setattr(mod.httpx, "Client", client)
+    records = AgmarknetConnector().fetch_raw(settings=_settings(), sleep=lambda s: None, today=_TODAY)
+    assert records[0]["commodity"] == "Ginger"  # registry seed name, not the 2.0 display name
+    assert records[0]["market"] == "Azadpur"
 
 
 def test_network_budget_comes_from_settings(monkeypatch):
@@ -271,9 +376,11 @@ def test_network_budget_comes_from_settings(monkeypatch):
 
     monkeypatch.setenv("VERVANA_AGMARKNET_TIMEOUT_SECONDS", "300")
     monkeypatch.setenv("VERVANA_AGMARKNET_MAX_RETRIES", "6")
+    monkeypatch.setenv("VERVANA_AGMARKNET_LOOKBACK_DAYS", "3")
     s = Settings(_env_file=None)
     assert s.agmarknet_timeout_seconds == 300.0
     assert s.agmarknet_max_retries == 6
+    assert s.agmarknet_lookback_days == 3
 
 
 def test_record_failure_persists_failed_run(session: Session):
