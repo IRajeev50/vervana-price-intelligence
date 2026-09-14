@@ -12,9 +12,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from vervana.config import get_settings
 
 
-@lru_cache(maxsize=4)
-def _cached_engine(url: str) -> Engine:
-    """Keep one small pool per database URL instead of creating one per request."""
+def _create_engine(url: str) -> Engine:
     connect_args: dict[str, object] = {}
     engine_kwargs: dict[str, object] = {"future": True, "pool_pre_ping": True}
     if url.startswith("sqlite"):
@@ -39,20 +37,28 @@ def _cached_engine(url: str) -> Engine:
     return engine
 
 
+@lru_cache(maxsize=1)
+def _default_engine(url: str) -> Engine:
+    """Keep one small pool for the serving process."""
+    return _create_engine(url)
+
+
 def make_engine(database_url: str | None = None) -> Engine:
-    """Return the process-wide engine for the configured database."""
-    return _cached_engine(database_url or get_settings().database_url)
+    """Return the shared configured engine, or a fresh explicit test/tool engine."""
+    if database_url is not None:
+        return _create_engine(database_url)
+    return _default_engine(get_settings().database_url)
 
 
-@lru_cache(maxsize=4)
-def _cached_session_factory(url: str) -> sessionmaker[Session]:
-    return sessionmaker(bind=_cached_engine(url), expire_on_commit=False, future=True)
+@lru_cache(maxsize=1)
+def _default_session_factory(url: str) -> sessionmaker[Session]:
+    return sessionmaker(bind=_default_engine(url), expire_on_commit=False, future=True)
 
 
 def make_session_factory(engine: Engine | None = None) -> sessionmaker[Session]:
     if engine is not None:
         return sessionmaker(bind=engine, expire_on_commit=False, future=True)
-    return _cached_session_factory(get_settings().database_url)
+    return _default_session_factory(get_settings().database_url)
 
 
 @contextmanager
