@@ -51,6 +51,56 @@ C_COMMENTARY, C_QUOTE, C_VIDEO, C_FLAG = (
 
 _KG_UNITS = {"kg", "kilo", "kilogram", "रु/किलो", "rs/kg"}
 
+# --------------------------------------------------------------------------------------
+# Ground-proof commodity labels (curated-workbook "Commodity" column).
+#
+# The vloggers often quote a combined label for one price range ("Tomato + Peas
+# 1000-1200"). When EVERY part of the label names a specific registry commodity we
+# record the same quoted range against each component, flagged `combined_quote:<label>`
+# so it is never mistaken for a per-commodity-only quote (Part 4.2: flag, never guess).
+# Keys are normalize()d forms (lowercase, punctuation stripped).
+# --------------------------------------------------------------------------------------
+_COMBINED_LABEL_COMPONENTS: dict[str, tuple[str, ...]] = {
+    "tomato peas": ("Tomato", "Green Peas"),          # matar
+    "chilli capsicum": ("Green Chilli", "Capsicum"),  # hari mirch + shimla mirch
+    "apple capsicum": ("Apple", "Capsicum"),
+    "mosambi guava": ("Mosambi", "Guava"),
+}
+
+# Labels that can never resolve to one commodity. They stay rejected, each with an
+# explicit reason so coverage reporting shows WHY the rows are out (Part 3.2: a tie or
+# an unknown is unresolved, never a guess).
+_GENERIC_BUCKETS = {
+    "fruits all",
+    "vegetables all",
+    "fruits all vegetables all",
+    "vegetables all fruits all",
+    "other",
+}
+# Precious-metals commentary in the same vlogs - not produce, out of platform scope.
+_NON_PRODUCE_LABELS = {"gold silver"}
+
+
+def _combined_components(label: str) -> tuple[str, ...] | None:
+    """Return the specific commodities a combined label covers, else None."""
+    from vervana.matching.normalize import normalize
+
+    return _COMBINED_LABEL_COMPONENTS.get(normalize(label))
+
+
+def _unresolved_reason(label: str) -> str:
+    """Classify an unresolvable label for honest coverage/reject reporting."""
+    from vervana.matching.normalize import normalize
+
+    n = normalize(label)
+    if n in _NON_PRODUCE_LABELS:
+        return "non_produce_label"
+    if n in _GENERIC_BUCKETS:
+        return "generic_bucket_label"
+    if "fruits all" in n or "vegetables all" in n:
+        return "combined_with_generic_bucket"
+    return "unresolved_commodity"
+
 
 class TranscriptConnector(Connector):
     name = "transcript"
@@ -98,98 +148,149 @@ class TranscriptConnector(Connector):
             if market_id is None:
                 result.reject(f"unresolved_market: {rec.get(C_CHANNEL)}", rec)
                 continue
+            label = (rec.get(C_COMMODITY) or "").strip()
+            components = _combined_components(label)
+            if components is not None:
+                component_ids = []
+                for cname in components:
+                    cid = resolve_by_name(
+                        session, name=cname, canonical_type=CanonicalType.commodity
+                    )
+                    if cid is None:
+                        component_ids = None
+                        break
+                    component_ids.append(cid)
+                if component_ids is None:
+                    result.reject(f"combined_component_unresolved: {label}", rec)
+                    continue
+                for cid in component_ids:
+                    self._ingest_one(
+                        session,
+                        rec,
+                        market_id=market_id,
+                        commodity_id=cid,
+                        extra_flags=[f"combined_quote:{label}"],
+                        result=result,
+                    )
+                continue
+
             commodity_id = resolve_by_name(
                 session,
-                name=(rec.get(C_COMMODITY) or "").strip(),
+                name=label,
                 canonical_type=CanonicalType.commodity,
             )
             if commodity_id is None:
-                result.reject(f"unresolved_commodity: {rec.get(C_COMMODITY)}", rec)
+                result.reject(f"{_unresolved_reason(label)}: {label}", rec)
                 continue
-
-            low = self._price(rec.get(C_LOW))
-            high = self._price(rec.get(C_HIGH))
-            if low is None and high is None:
-                result.reject("no_price_extracted", rec)
-                continue
-
-            flags = self._flags(rec, low, high)
-            # RISK[R3-VIDEO-PROVENANCE]: These are YouTube-quoted ranges treated as prices.
-            # UNVERIFIED against executed trades — the ground-truth study (M5) compares them
-            # to trader invoices. Until then every row here is a SENTIMENT/quote signal, not
-            # an executed price; source_class=quote_indicative keeps them un-blendable with
-            # executed prices, and the unit is usually unstated so canonical ₹/kg stays NULL.
-            # Evidence: docs/RISK_REGISTER.md#r3-video-provenance; assumptions A3
-            # Verdict: PENDING
-            lo = low if low is not None else high
-            hi = high if high is not None else low
-            if lo > hi:
-                result.reject("range_disorder", rec)
-                continue
-
-            unit_raw = (rec.get(C_UNIT) or "unstated").strip() or "unstated"
-            canonical = None
-            if unit_raw.lower() in _KG_UNITS:
-                canonical = round((lo + hi) / 2)
-
-            source_url = (rec.get(C_VIDEO) or "").strip()
-            raw_quote = (rec.get(C_QUOTE) or "").strip()
-            if not source_url:
-                result.reject("missing_source_url", rec)
-                continue
-            if not raw_quote:
-                result.reject("missing_raw_quote", rec)
-                continue
-            evidence_json = json.dumps(
-                {
-                    "source_type": "youtube_ground_proof",
-                    "quote": raw_quote,
-                    "channel_mandi": rec.get(C_CHANNEL),
-                    "variety": rec.get(C_VARIETY),
-                    "commentary": rec.get(C_COMMENTARY),
-                    "arrivals": rec.get(C_ARRIVALS),
-                    "carryover": rec.get(C_CARRYOVER),
-                    "source_flag": rec.get(C_FLAG),
-                    "detected_flags": flags,
-                },
-                ensure_ascii=False,
-                sort_keys=True,
-            )
-            observed_at = self._date(rec.get(C_DATE))
-            from sqlalchemy import select
-            from vervana.models.observations import PriceObservation
-            duplicate = session.scalar(
-                select(PriceObservation.id).where(
-                    PriceObservation.commodity_id == commodity_id,
-                    PriceObservation.market_id == market_id,
-                    PriceObservation.source_class == SourceClass.quote_indicative,
-                    PriceObservation.observed_at == observed_at,
-                    PriceObservation.source_url == source_url,
-                    PriceObservation.raw_quote == evidence_json,
-                ).limit(1)
-            )
-            if duplicate is not None:
-                result.reject("duplicate_already_ingested", rec)
-                continue
-
-            insert_observation(
+            self._ingest_one(
                 session,
-                commodity_id=commodity_id,
+                rec,
                 market_id=market_id,
-                source_class=SourceClass.quote_indicative,
-                price_low_paise=lo,
-                price_high_paise=hi,
-                price_point_paise=lo if low is not None and high is None else None,
-                unit_raw=unit_raw,
-                canonical_price_paise_per_kg=canonical,
-                unit_conversion_confidence=1.0 if canonical is not None else None,
-                source_url=source_url,
-                raw_quote=evidence_json,
-                observed_at=observed_at,
-                time_basis=TimeBasis.single_daily_quote,
+                commodity_id=commodity_id,
+                extra_flags=[],
+                result=result,
             )
-            result.accept()
         return result
+
+    def _ingest_one(
+        self,
+        session,
+        rec: dict,
+        *,
+        market_id: int,
+        commodity_id: int,
+        extra_flags: list[str],
+        result: IngestResult,
+    ) -> None:
+        """Ingest one row against one resolved commodity.
+
+        Combined labels ("Tomato + Peas") call this once per component, so one
+        workbook row can produce one observation per specific commodity, each
+        carrying the `combined_quote` flag. Per-commodity dedupe is unchanged.
+        """
+
+        low = self._price(rec.get(C_LOW))
+        high = self._price(rec.get(C_HIGH))
+        if low is None and high is None:
+            result.reject("no_price_extracted", rec)
+            return
+
+        flags = self._flags(rec, low, high) + list(extra_flags)
+        # RISK[R3-VIDEO-PROVENANCE]: These are YouTube-quoted ranges treated as prices.
+        # UNVERIFIED against executed trades — the ground-truth study (M5) compares them
+        # to trader invoices. Until then every row here is a SENTIMENT/quote signal, not
+        # an executed price; source_class=quote_indicative keeps them un-blendable with
+        # executed prices, and the unit is usually unstated so canonical ₹/kg stays NULL.
+        # Evidence: docs/RISK_REGISTER.md#r3-video-provenance; assumptions A3
+        # Verdict: PENDING
+        lo = low if low is not None else high
+        hi = high if high is not None else low
+        if lo > hi:
+            result.reject("range_disorder", rec)
+            return
+
+        unit_raw = (rec.get(C_UNIT) or "unstated").strip() or "unstated"
+        canonical = None
+        if unit_raw.lower() in _KG_UNITS:
+            canonical = round((lo + hi) / 2)
+
+        source_url = (rec.get(C_VIDEO) or "").strip()
+        raw_quote = (rec.get(C_QUOTE) or "").strip()
+        if not source_url:
+            result.reject("missing_source_url", rec)
+            return
+        if not raw_quote:
+            result.reject("missing_raw_quote", rec)
+            return
+        evidence_json = json.dumps(
+            {
+                "source_type": "youtube_ground_proof",
+                "quote": raw_quote,
+                "channel_mandi": rec.get(C_CHANNEL),
+                "variety": rec.get(C_VARIETY),
+                "commentary": rec.get(C_COMMENTARY),
+                "arrivals": rec.get(C_ARRIVALS),
+                "carryover": rec.get(C_CARRYOVER),
+                "source_flag": rec.get(C_FLAG),
+                "detected_flags": flags,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+        observed_at = self._date(rec.get(C_DATE))
+        from sqlalchemy import select
+        from vervana.models.observations import PriceObservation
+        duplicate = session.scalar(
+            select(PriceObservation.id).where(
+                PriceObservation.commodity_id == commodity_id,
+                PriceObservation.market_id == market_id,
+                PriceObservation.source_class == SourceClass.quote_indicative,
+                PriceObservation.observed_at == observed_at,
+                PriceObservation.source_url == source_url,
+                PriceObservation.raw_quote == evidence_json,
+            ).limit(1)
+        )
+        if duplicate is not None:
+            result.reject("duplicate_already_ingested", rec)
+            return
+
+        insert_observation(
+            session,
+            commodity_id=commodity_id,
+            market_id=market_id,
+            source_class=SourceClass.quote_indicative,
+            price_low_paise=lo,
+            price_high_paise=hi,
+            price_point_paise=lo if low is not None and high is None else None,
+            unit_raw=unit_raw,
+            canonical_price_paise_per_kg=canonical,
+            unit_conversion_confidence=1.0 if canonical is not None else None,
+            source_url=source_url,
+            raw_quote=evidence_json,
+            observed_at=observed_at,
+            time_basis=TimeBasis.single_daily_quote,
+        )
+        result.accept()
 
     # --- helpers ---------------------------------------------------------------
     @staticmethod

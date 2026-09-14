@@ -413,3 +413,21 @@ async def admin_supply_rainfall(
         "rejected": result.rejected,
         "rejection_reasons": result.reason_counts,
     }
+
+@router.post("/admin/registry/seed")
+def admin_registry_seed(_key: str = Depends(require_api_key)):
+    """Idempotently seed the canonical registry from the checked-in CSVs.
+
+    Deployed free-tier hosts have no shell, so a deploy that adds seed commodities
+    or markets cannot run `uv run vervana registry seed` there - this endpoint is
+    the operator path. seed_registry is get-or-create, so repeat calls only add
+    what is missing; live prices still come from ingest runs, never from the seed.
+    """
+    from pathlib import Path
+
+    from vervana.repository.registry import seed_registry
+
+    seed_dir = Path(__file__).resolve().parents[3] / "data" / "seed"
+    with session_scope() as session:
+        counts = seed_registry(session, seed_dir)
+    return {"seeded": True, "counts": counts}
