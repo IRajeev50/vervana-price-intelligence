@@ -95,6 +95,42 @@ MARKET_NAME_MAP = {
     "apmc narela": "Narela",
     "apmc shahdara": "Shahdara",
     "fruit&vegetable market,gazipur apmc": "Ghazipur",
+    # National expansion (2026-09-14): watch-zone district mandis plus national
+    # benchmark metros. Every key below is the Agmarknet 2.0 `marketCenter` display
+    # name (stripped, lowercased) verified against live daily state reports for
+    # 2026-09-08/11/12; values are canonical names seeded in
+    # data/seed/markets_national.csv.
+    # Maharashtra
+    "apmc nasik": "Nashik",
+    "apmc lasalgaon": "Lasalgaon",
+    "apmc solapur": "Solapur",
+    "apmc mumbai": "Mumbai",
+    "mumbai- fruit market": "Mumbai Fruit Market",
+    "mumbai-onion & potato market": "Mumbai Onion & Potato Market",
+    "apmc pune": "Pune",
+    # Uttar Pradesh
+    "meerut apmc": "Meerut",
+    "agra apmc": "Agra",
+    "lucknow apmc": "Lucknow",
+    "noida apmc": "Noida",
+    "ghaziabad apmc": "Ghaziabad",
+    "varanasi apmc": "Varanasi",
+    # Punjab (Agmarknet reports the Ludhiana district mandi under Sahnewal)
+    "sahnewal apmc": "Sahnewal",
+    "khanna apmc": "Khanna",
+    "jalandhar city(jalandhar) apmc": "Jalandhar City",
+    # Madhya Pradesh
+    "indore apmc": "Indore",
+    "indore(f&v) apmc": "Indore (F&V)",
+    "bhopal apmc": "Bhopal",
+    # Karnataka
+    "kolar apmc": "Kolar",
+    "bengaluru apmc": "Bengaluru",
+    "binny mill (ff&v) bengaluru apmc": "Bengaluru Binny Mill (FF&V)",
+    "belgaum apmc": "Belgaum",
+    # West Bengal (Agmarknet reports Hooghly district under Sheoraphuly)
+    "sheoraphuly apmc": "Sheoraphuly",
+    "bara bazar (posta bazar) apmc": "Kolkata Bara Bazar (Posta)",
 }
 COMMODITY_NAME_MAP = {
     # The 2.0 taxonomy splits ginger; the registry's "Ginger" seed (adrak) is the

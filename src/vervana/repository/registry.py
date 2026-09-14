@@ -133,6 +133,7 @@ def seed_registry(session: Session, seed_dir: Path) -> dict[str, int]:
     _seed_commodities(session, seed_dir / "commodities.csv")
     _seed_varieties(session, seed_dir / "varieties.csv")
     _seed_markets(session, seed_dir / "markets_delhi.csv")
+    _seed_markets(session, seed_dir / "markets_national.csv")
     _seed_unit_conventions(session, seed_dir / "unit_conventions.csv")
     session.flush()
     return counts(session)
