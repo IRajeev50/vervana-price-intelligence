@@ -32,9 +32,6 @@ FIXTURE = Path(__file__).resolve().parent / "fixtures" / "agmarknet_sample.json"
 def _fresh_db(tmp_path, monkeypatch) -> str:
     url = f"sqlite:///{tmp_path / 'setup.sqlite3'}"
     monkeypatch.setenv("VERVANA_DATABASE_URL", url)
-    # Force the "no key configured" state deterministically: an empty env var overrides
-    # any real key in a developer's .env, so these empty-state tests don't depend on it.
-    monkeypatch.setenv("VERVANA_DATA_GOV_IN_API_KEY", "")
     Base.metadata.create_all(make_engine(url))
     return url
 
@@ -44,23 +41,20 @@ def _by_key(steps):
 
 
 def test_empty_db_nothing_done(session, monkeypatch):
-    monkeypatch.setenv("VERVANA_DATA_GOV_IN_API_KEY", "")  # isolate from a dev's real .env key
     steps = _by_key(collect_setup_steps(session, Settings()))
     assert not steps["registry"].ok
-    assert not steps["api_key"].ok
     assert not steps["live_data"].ok
-    # Each open step names the exact next action; no secrets are echoed.
+    # The Agmarknet 2.0 source is keyless: no API-key step exists anymore.
+    assert "api_key" not in steps
+    # Each open step names the exact next action.
     assert steps["registry"].action == "uv run vervana setup"
-    assert "VERVANA_DATA_GOV_IN_API_KEY" in steps["api_key"].action
     assert steps["live_data"].action.startswith("uv run vervana ingest agmarknet")
 
 
 def test_seeded_registry_marks_reference_data_done(session, monkeypatch):
     seed_registry(session, SEED_DIR)
-    monkeypatch.setenv("VERVANA_DATA_GOV_IN_API_KEY", "test-key-not-real")
     steps = _by_key(collect_setup_steps(session, Settings()))
     assert steps["registry"].ok
-    assert steps["api_key"].ok
     # Seed data is reference data only: it must NOT satisfy the live-data step.
     assert not steps["live_data"].ok
     assert "no live prices yet" in steps["live_data"].detail
@@ -68,7 +62,6 @@ def test_seeded_registry_marks_reference_data_done(session, monkeypatch):
 
 def test_failed_run_is_surfaced_not_hidden(session, monkeypatch):
     seed_registry(session, SEED_DIR)
-    monkeypatch.setenv("VERVANA_DATA_GOV_IN_API_KEY", "test-key-not-real")
     session.add(
         IngestRun(
             connector="agmarknet",
@@ -87,7 +80,6 @@ def test_failed_run_is_surfaced_not_hidden(session, monkeypatch):
 
 def test_ingested_observations_complete_the_checklist(session, monkeypatch):
     seed_registry(session, SEED_DIR)
-    monkeypatch.setenv("VERVANA_DATA_GOV_IN_API_KEY", "test-key-not-real")
     records = json.loads(FIXTURE.read_text(encoding="utf-8"))["records"]
     AgmarknetConnector().ingest_with_run(session, records, mode="test")
     session.flush()
@@ -103,13 +95,11 @@ def test_ingested_observations_complete_the_checklist(session, monkeypatch):
 
 def test_cli_setup_is_idempotent_and_reports(tmp_path, monkeypatch):
     monkeypatch.setenv("VERVANA_DATABASE_URL", f"sqlite:///{tmp_path / 'cli.sqlite3'}")
-    monkeypatch.setenv("VERVANA_DATA_GOV_IN_API_KEY", "")  # isolate from a dev's real .env key
     runner = CliRunner()
     first = runner.invoke(cli_app, ["setup"])
     assert first.exit_code == 0, first.output
     assert "commodities" in first.output
-    # Without a key and without a capture, the checklist must say so honestly.
-    assert "no key found" in first.output
+    # Without a capture, the checklist must say so honestly.
     assert "no live prices yet" in first.output
     # Registry rows exist after one run ...
     with session_scope() as s:
@@ -133,9 +123,8 @@ def test_cli_doctor_exit_codes(tmp_path, monkeypatch):
 
     runner.invoke(cli_app, ["setup"])
     open_steps = runner.invoke(cli_app, ["doctor"])
-    assert open_steps.exit_code == 1  # key + live data still missing
+    assert open_steps.exit_code == 1  # live data still missing
 
-    monkeypatch.setenv("VERVANA_DATA_GOV_IN_API_KEY", "test-key-not-real")
     with session_scope() as s:
         records = json.loads(FIXTURE.read_text(encoding="utf-8"))["records"]
         AgmarknetConnector().ingest_with_run(s, records, mode="test")
@@ -161,7 +150,7 @@ def test_dashboard_shows_setup_checklist_when_empty(empty_client):
     assert r.status_code == 200
     assert "First-run setup" in r.text
     assert "uv run vervana setup" in r.text
-    assert "VERVANA_DATA_GOV_IN_API_KEY" in r.text
+    assert "no live prices yet" in r.text
 
 
 def test_prices_empty_state_is_actionable_when_no_data(empty_client):
@@ -173,7 +162,6 @@ def test_prices_empty_state_is_actionable_when_no_data(empty_client):
 
 def test_dashboard_hides_checklist_once_ready(tmp_path, monkeypatch):
     _fresh_db(tmp_path, monkeypatch)
-    monkeypatch.setenv("VERVANA_DATA_GOV_IN_API_KEY", "test-key-not-real")
     with session_scope() as s:
         seed_registry(s, SEED_DIR)
         records = json.loads(FIXTURE.read_text(encoding="utf-8"))["records"]
