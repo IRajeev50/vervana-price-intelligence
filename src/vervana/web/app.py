@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import calendar as _calendar
 import csv
+import hashlib
 import hmac
 import json
 from datetime import date, timedelta
@@ -37,7 +38,22 @@ from vervana.setup_status import collect_setup_steps
 from vervana.time import format_ist, now_utc, to_ist
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+STATIC_DIR = Path(__file__).parent / "static"
 TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+
+
+def _asset_url(path: str) -> str:
+    """Versioned static-asset URL.
+
+    The query string is a content hash of the file, so any CSS/JS change
+    produces a new URL: a browser can never pair freshly deployed markup
+    with a stale cached stylesheet (the "jammed inline text" failure mode).
+    """
+    digest = hashlib.sha256((STATIC_DIR / path).read_bytes()).hexdigest()[:10]
+    return f"/static/{path}?v={digest}"
+
+
+TEMPLATES.env.globals["asset_url"] = _asset_url
 
 app = FastAPI(title="Vervana — Price Intelligence")
 
@@ -47,9 +63,22 @@ app.include_router(api_v1_router)
 
 app.mount(
     "/static",
-    StaticFiles(directory=str(Path(__file__).parent / "static")),
+    StaticFiles(directory=str(STATIC_DIR)),
     name="static",
 )
+
+
+@app.middleware("http")
+async def static_revalidate(request: Request, call_next):
+    # Force revalidation of static assets. Heuristic browser caching of
+    # /static/* previously let an old app.css style new templates. `no-cache`
+    # makes the browser revalidate every load; the ETag keeps that a cheap
+    # 304. The versioned asset_url query string is the primary invalidation;
+    # this header is the safety net for any direct /static/ URL.
+    response = await call_next(request)
+    if request.url.path.startswith("/static/"):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
 
 
 @app.middleware("http")
