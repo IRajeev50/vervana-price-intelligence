@@ -37,7 +37,7 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    engine = make_engine(_database_url())
+    engine = make_engine()
     with engine.connect() as connection:
         context.configure(
             connection=connection,

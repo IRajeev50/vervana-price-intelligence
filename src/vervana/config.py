@@ -67,8 +67,10 @@ class Settings(BaseSettings):
 
     # --- Datastore ---
     # Defaults to a local SQLite file so nothing is required to import/run in dev
-    # and tests. Production sets VERVANA_DATABASE_URL to the Postgres DSN.
+    # and tests. Production can set Turso URL + token; local development stays SQLite.
     database_url: str = "sqlite:///vervana.dev.sqlite3"
+    turso_database_url: str | None = None
+    turso_auth_token: str | None = None
 
     # --- Supply-side feeds (M11; safe defaults, secrets stay None) ---
     # Copernicus Data Space (Sentinel-2 NDVI fallback path): free OAuth client.
