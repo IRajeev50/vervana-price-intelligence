@@ -16,7 +16,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from types import SimpleNamespace as _NS
 
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -796,56 +796,45 @@ def _read_probe() -> list[dict]:
         ]
 
 @app.get("/districts", response_class=HTMLResponse)
-def district_insights_page(request: Request, district: str = "", crop: str = ""):
-    """District-wise insights: official DES/APY crop production, read-only."""
-    from vervana.repository.crop_production import (
-        district_index,
-        district_insight,
-        fetch_crop_rows,
-        fetch_year_rows,
-        rollup_crop_trend,
-        rollup_crop_year,
-    )
+def district_directory_page(request: Request, state: str = "", q: str = "", sort: str = "production"):
+    """District-wise insights: national directory, key figures only per district.
 
+    Tap a district to open its full detail card. Read-only; figures come from
+    the derived rollup (official DES/APY rows, annualised without double-count).
+    """
+    from vervana.models.crop_production import CropProductionRecord
+    from vervana.repository.crop_production import SORTS, district_directory
+
+    if sort not in SORTS:
+        sort = "production"
     with session_scope() as s:
-        districts = district_index(s)
-        known = {d["district"] for d in districts}
-        active = district if district in known else (districts[0]["district"] if districts else "")
-        insights = []
-        insight = None
-        summary = []
-        trend = []
-        top_crop = ""
-        for d in districts:
-            di = district_insight(s, d["district"])
-            if di is None:
-                continue
-            di["district"] = d["district"]
-            di["state"] = d["state"]
-            insights.append(di)
-            if d["district"] == active:
-                insight = di
-        if insight is not None:
-            summary = rollup_crop_year(fetch_year_rows(s, active, insight["latest_year"]))
-            top_crop = (
-                crop
-                if crop and any(r["crop"] == crop for r in summary)
-                else (summary[0]["crop"] if summary else "")
-            )
-            trend = rollup_crop_trend(fetch_crop_rows(s, active, top_crop)) if top_crop else []
-    latest_label = insight["latest_year"] if insight else (districts[0]["latest_year"] if districts else None)
+        data = district_directory(s, state=state, q=q, sort=sort)
+        raw_rows = s.scalar(select(func.count()).select_from(CropProductionRecord)) or 0
     return TEMPLATES.TemplateResponse(
         request,
         "district_insights.html",
         _ctx(
             request,
-            districts=districts,
-            insights=insights,
-            insight=insight,
-            active_district=active,
-            latest_year_label=latest_label,
-            summary=summary,
-            top_crop=top_crop,
-            trend=trend,
+            directory=data,
+            f_state=state,
+            q=q,
+            sort=sort,
+            raw_rows=raw_rows,
         ),
+    )
+
+
+@app.get("/districts/{state}/{district}", response_class=HTMLResponse)
+def district_detail_page(request: Request, state: str, district: str, crop: str = ""):
+    """One district's full insight card: the detail behind a directory tap."""
+    from vervana.repository.crop_production import district_detail
+
+    with session_scope() as s:
+        detail = district_detail(s, state, district, crop=crop)
+    if detail is None:
+        raise HTTPException(status_code=404, detail=f"no crop data for {district}, {state}")
+    return TEMPLATES.TemplateResponse(
+        request,
+        "district_detail.html",
+        _ctx(request, **detail, latest_year_label=detail["insight"]["latest_year"]),
     )
