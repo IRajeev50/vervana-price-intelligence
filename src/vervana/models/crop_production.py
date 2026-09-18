@@ -67,3 +67,47 @@ class CropProductionRecord(Base):
         Index("ix_cropprod_district_year", "district_name", "year_label"),
         Index("ix_cropprod_crop", "crop_name"),
     )
+
+
+class CropDistrictYearRollup(Base):
+    """Derived read model: one annualised row per state x district x year x crop.
+
+    Rebuilt from crop_production by
+    vervana.repository.crop_production.rebuild_rollup() - never hand-written,
+    never edited. The raw published rows stay in crop_production; this table
+    exists so the national directory (740 districts x 26 years x ~50 crops)
+    can be listed without re-aggregating ~455k raw rows on every page load.
+
+    The no-double-count rule is applied at rebuild time, exactly as
+    _annualise() does it in Python: the official annual ("Total") row wins
+    when it exists for the district x crop x year, otherwise the seasonal
+    rows are summed. `basis` records which leg produced the number.
+    """
+
+    __tablename__ = "crop_district_year_rollup"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    state_name: Mapped[str] = mapped_column(String(60))
+    district_name: Mapped[str] = mapped_column(String(60))
+    year_label: Mapped[str] = mapped_column(String(9))
+    crop_name: Mapped[str] = mapped_column(String(80))
+    crop_type: Mapped[str] = mapped_column(String(40), default="")
+
+    production_t: Mapped[float | None] = mapped_column(Numeric(16, 3), default=None)
+    area_ha: Mapped[float | None] = mapped_column(Numeric(14, 2), default=None)
+    yield_t_per_ha: Mapped[float | None] = mapped_column(Numeric(12, 4), default=None)
+    # "annual row" or "seasonal sum" - which leg of the rule produced the figures.
+    basis: Mapped[str] = mapped_column(String(20))
+
+    __table_args__ = (
+        UniqueConstraint(
+            "state_name",
+            "district_name",
+            "year_label",
+            "crop_name",
+            name="uq_crop_rollup_row",
+        ),
+        Index("ix_croprollup_state_district", "state_name", "district_name"),
+        Index("ix_croprollup_year", "year_label"),
+    )
