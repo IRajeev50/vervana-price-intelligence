@@ -10,3 +10,4 @@ logs/
 .venv/
 venv/
 .DS_Store
+data/cache/

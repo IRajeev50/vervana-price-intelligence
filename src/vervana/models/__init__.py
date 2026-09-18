@@ -1,7 +1,7 @@
 """ORM models. Importing this module registers every table on Base.metadata."""
 
 from vervana.models.context import ContextSignal
-from vervana.models.crop_production import CropProductionRecord
+from vervana.models.crop_production import CropDistrictYearRollup, CropProductionRecord
 from vervana.models.entities import Alias, Commodity, Grade, Market, Variety
 from vervana.models.forecast_log import ProspectiveForecast
 from vervana.models.ingest import IngestRun
@@ -18,6 +18,7 @@ __all__ = [
     "AliasReview",
     "Commodity",
     "ContextSignal",
+    "CropDistrictYearRollup",
     "CropProductionRecord",
     "Grade",
     "IngestRun",

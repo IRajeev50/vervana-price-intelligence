@@ -902,50 +902,84 @@ crops_app = typer.Typer(
 )
 app.add_typer(crops_app, name="crops")
 
+NATIONAL_CACHE = REPO_ROOT / "data" / "cache" / "crop_apy_national.csv"
+
+
+def _download_national_apy(dest: Path) -> Path:
+    """Fetch the full all-India DES/APY CSV (keyless India Data Portal download)."""
+    import httpx
+
+    from vervana.repository.crop_production import NATIONAL_APY_URL
+
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    typer.echo(f"downloading national APY file -> {dest}")
+    with httpx.stream("GET", NATIONAL_APY_URL, follow_redirects=True, timeout=300) as resp:
+        resp.raise_for_status()
+        with open(dest, "wb") as fh:
+            for chunk in resp.iter_bytes(chunk_size=1 << 20):
+                fh.write(chunk)
+    typer.echo(f"downloaded {dest.stat().st_size / 1e6:,.1f} MB")
+    return dest
+
 
 @crops_app.command("import-apy")
 def crops_import_apy(
     path: Path = REPO_ROOT / "data" / "seed" / "crop_apy_pilot_districts.csv",
+    national: bool = typer.Option(
+        False, "--national", help="Download and import the full all-India file (740 districts)."
+    ),
 ) -> None:
-    """Import official district crop production (idempotent; safe to re-run)."""
-    from vervana.db.engine import session_scope
-    from vervana.repository.crop_production import import_apy_csv
+    """Import official district crop production (idempotent; safe to re-run).
 
+    Default imports the 3-district pilot seed. --national downloads the full
+    DES/APY file (34 states/UTs, 740 districts, 1997-98 to 2022-23) from the
+    India Data Portal and imports it; already-present rows are skipped, so it
+    is safe to run after the pilot import. The read rollup is rebuilt at the
+    end so the District insights pages pick up the new data.
+    """
+    from vervana.db.engine import session_scope
+    from vervana.repository.crop_production import import_apy_csv, rebuild_rollup
+
+    if national:
+        path = _download_national_apy(NATIONAL_CACHE)
     with session_scope() as session:
         res = import_apy_csv(session, path)
-    typer.echo(
-        f"crop production rows added={res['added']} skipped={res['skipped']} rejected={res['rejected']}"
-    )
-    for reason, count in sorted(res["reasons"].items(), key=lambda kv: -kv[1]):
-        typer.echo(f"  rejected [{count}]: {reason}")
+        typer.echo(
+            f"crop production rows added={res['added']} skipped={res['skipped']} rejected={res['rejected']}"
+        )
+        for reason, count in sorted(res["reasons"].items(), key=lambda kv: -kv[1]):
+            typer.echo(f"  rejected [{count}]: {reason}")
+        n = rebuild_rollup(session)
+    typer.echo(f"rollup rebuilt: {n} district-year-crop rows")
+
+
+@crops_app.command("refresh-rollups")
+def crops_refresh_rollups() -> None:
+    """Rebuild the derived district-year-crop read model from the raw rows."""
+    from vervana.db.engine import session_scope
+    from vervana.repository.crop_production import rebuild_rollup
+
+    with session_scope() as session:
+        n = rebuild_rollup(session)
+    typer.echo(f"rollup rebuilt: {n} district-year-crop rows")
 
 
 @crops_app.command("summary")
-def crops_summary() -> None:
+def crops_summary(state: str = "") -> None:
     """Latest-year production per district (annual row preferred; never double-counted)."""
     from vervana.db.engine import session_scope
-    from vervana.repository.crop_production import (
-        district_index,
-        fetch_year_rows,
-        rollup_crop_year,
-    )
+    from vervana.repository.crop_production import district_directory
 
     with session_scope() as session:
-        districts = district_index(session)
-        if not districts:
+        data = district_directory(session, state=state)
+        if not data["rows"]:
             typer.echo("no crop production data - run: uv run vervana crops import-apy")
             return
-        for d in districts:
-            rows = fetch_year_rows(session, d["district"], d["latest_year"])
-            summary = rollup_crop_year(rows)
-            total = sum(r["production"] or 0 for r in summary)
-            typer.echo(f"{d['district']} ({d['state']}) {d['latest_year']}: {total:,.0f} t")
-            for r in summary[:5]:
-                prod = f"{r['production']:,.0f}" if r["production"] is not None else "-"
-                typer.echo(f"    {r['crop']:<28} {prod:>12} t  [{r['basis']}]")
+        for d in data["rows"]:
+            typer.echo(f"{d['district']} ({d['state']}) {d['latest_year']}: {d['total']:,.0f} t")
+            typer.echo(f"    top crops: {', '.join(d['top_crops'])}")
 
 
 if __name__ == "__main__":  # pragma: no cover
 
     app()
-

@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}{{ district }} — District insights{% endblock %}
+{% block body %}
+<header class="page-head">
+  <div class="page-head__kicker">Research → <a href="/districts">District-wise insights</a></div>
+  <h1>{{ district }} <span class="muted">({{ state }})</span></h1>
+  <p class="page-head__sub">Official DES (Ministry of Agriculture) crop production. The physical supply layer under the price layer — production totals, not mandi arrivals, traded volume, storage demand, or revenue.</p>
+</header>
+
+<section class="section" aria-labelledby="insight-h">
+  <h2 id="insight-h">{{ district }} — {{ latest_year_label }}</h2>
+  <div class="callout callout--info">
+    <span class="callout__ico" aria-hidden="true">❋</span>
+    <div class="callout__body">
+      <strong>{{ "{:,.0f}".format(insight.total) }} tonnes</strong> across {{ insight.n_crops }} listed crops.
+      Led by {{ insight.top_crops | map(attribute='crop') | join(', ') }}.
+      Perishable (fruits + vegetables) supply: <strong>{{ "{:,.0f}".format(insight.perishable) }} t</strong>{% if insight.perishable_share is not none %} ({{ "{:.0f}".format(insight.perishable_share) }}% of output){% endif %}.
+      {% if insight.vs_prev5_pct is not none %}Production is <strong>{{ "{:+.0f}".format(insight.vs_prev5_pct) }}%</strong> versus the five-year average ({{ "{:,.0f}".format(insight.prev5_avg) }} t).{% endif %}
+    </div>
+  </div>
+  <div class="table-wrap">
+  <table class="data">
+    <thead><tr><th>Year</th><th class="num">Total production (t)</th></tr></thead>
+    <tbody>
+    {% for year, total in insight.year_totals.items() %}
+      <tr{% if year == latest_year_label %} class="cell-strong"{% endif %}>
+        <td class="cell-muted">{{ year }}</td><td class="num">{{ "{:,.0f}".format(total) }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="crops-h">
+  <h2 id="crops-h">{{ district }} — {{ latest_year_label }} by crop</h2>
+  <p class="muted small">"basis" shows whether the figure is the official annual row or the sum of seasonal rows. Tap a crop for its year-by-year trend. DES publishes coconut in nuts, not tonnes — coconut is labelled "nuts" and never enters the tonne totals above.</p>
+  <div class="table-wrap">
+  <table class="data">
+    <thead><tr><th>Crop</th><th>Type</th><th class="num">Production (t)</th><th class="num">Area (ha)</th><th class="num">Yield (t/ha)</th><th>basis</th></tr></thead>
+    <tbody>
+    {% for r in summary %}
+      <tr>
+        <td><a href="/districts/{{ state | urlencode }}/{{ district | urlencode }}?crop={{ r.crop | urlencode }}">{{ r.crop }}</a></td>
+        <td class="cell-muted">{{ r.crop_type or "—" }}</td>
+        <td class="num cell-strong">{% if r.production is not none %}{{ "{:,.0f}".format(r.production) }} {{ r.unit }}{% else %}—{% endif %}</td>
+        <td class="num">{% if r.area is not none %}{{ "{:,.0f}".format(r.area) }}{% else %}—{% endif %}</td>
+        <td class="num">{% if r.yield is not none %}{{ "{:.2f}".format(r.yield) }}{% else %}—{% endif %}</td>
+        <td class="cell-muted">{{ r.basis }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
+{% if trend %}
+<section class="section" aria-labelledby="trend-h">
+  <h2 id="trend-h">{{ top_crop }} in {{ district }} — year by year</h2>
+  <p class="muted small">Pick another crop from the table above to change this trend.</p>
+  <div class="table-wrap">
+  <table class="data">
+    <thead><tr><th>Year</th><th class="num">Production (t)</th><th class="num">Area (ha)</th><th class="num">Yield (t/ha)</th><th>basis</th></tr></thead>
+    <tbody>
+    {% for t in trend %}
+      <tr>
+        <td class="cell-muted">{{ t.year }}</td>
+        <td class="num cell-strong">{% if t.production is not none %}{{ "{:,.0f}".format(t.production) }} {{ t.unit }}{% else %}—{% endif %}</td>
+        <td class="num">{% if t.area is not none %}{{ "{:,.0f}".format(t.area) }}{% else %}—{% endif %}</td>
+        <td class="num">{% if t.yield is not none %}{{ "{:.2f}".format(t.yield) }}{% else %}—{% endif %}</td>
+        <td class="cell-muted">{{ t.basis }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
+
+<p class="muted small">Source: <a href="https://www.data.gov.in/catalog/district-wise-season-wise-crop-production-statistics-0">DES district-wise season-wise crop production, data.gov.in catalogue</a>. Public sector information under GODL-India. <a href="/districts">← All districts</a></p>
+{% endblock %}
