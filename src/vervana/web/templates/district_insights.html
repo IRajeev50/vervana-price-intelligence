@@ -4,7 +4,7 @@
 <header class="page-head">
   <div class="page-head__kicker">Research</div>
   <h1>District-wise insights</h1>
-  <p class="page-head__sub">What each district actually grows, from official DES (Ministry of Agriculture) crop production statistics. The physical supply layer under the price layer: production context for every mandi price signal.</p>
+  <p class="page-head__sub">What each district actually grows, from official DES (Ministry of Agriculture) crop production statistics. The physical supply layer under the price layer: production context for every mandi price signal. Key figures only here — tap a district for its full card.</p>
 </header>
 
 <div class="callout callout--info">
@@ -18,19 +18,44 @@
   </div>
 </div>
 
-{% if districts %}
-<section class="section" aria-labelledby="compare-h">
-  <h2 id="compare-h">Districts at a glance — {{ latest_year_label }}</h2>
+{% if directory.rows %}
+<form class="filters" method="get" aria-label="Filter districts">
+  <div class="field">
+    <label for="f-state">State</label>
+    <select class="select" id="f-state" name="state">
+      <option value="">All states</option>
+      {% for s in directory.states %}<option value="{{ s }}" {{ 'selected' if s==f_state }}>{{ s }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label for="f-q">District</label>
+    <input class="input" type="text" id="f-q" name="q" placeholder="Search district…" value="{{ q }}">
+  </div>
+  <div class="field">
+    <label for="f-sort">Sort by</label>
+    <select class="select" id="f-sort" name="sort">
+      <option value="production" {{ 'selected' if sort=='production' }}>Production</option>
+      <option value="perishable" {{ 'selected' if sort=='perishable' }}>Perishable share</option>
+      <option value="vs5" {{ 'selected' if sort=='vs5' }}>vs 5-yr avg</option>
+      <option value="name" {{ 'selected' if sort=='name' }}>Name</option>
+    </select>
+  </div>
+  <button class="btn" type="submit">Apply</button>
+</form>
+
+<section class="section" aria-labelledby="dir-h">
+  <h2 id="dir-h">{{ directory.rows | length }} districts — latest published year each</h2>
   <div class="table-wrap">
   <table class="data">
-    <thead><tr><th>District</th><th class="num">Production (t)</th><th>Top crops</th><th class="num">Perishable share</th><th class="num">vs 5-yr avg</th></tr></thead>
+    <thead><tr><th>District</th><th class="num">Year</th><th class="num">Production (t)</th><th>Top crops</th><th class="num">Perishable share</th><th class="num">vs 5-yr avg</th></tr></thead>
     <tbody>
-    {% for d in insights %}
+    {% for d in directory.rows %}
       <tr>
-        <td>{% if d.district == active_district %}<strong>{{ d.district }}</strong>{% else %}<a href="/districts?district={{ d.district | urlencode }}">{{ d.district }}</a>{% endif %}
+        <td><a href="/districts/{{ d.state | urlencode }}/{{ d.district | urlencode }}">{{ d.district }}</a>
           <br><span class="muted small">{{ d.state }}</span></td>
+        <td class="num cell-muted">{{ d.latest_year }}</td>
         <td class="num cell-strong">{{ "{:,.0f}".format(d.total) }}</td>
-        <td>{{ d.top_crops | map(attribute='crop') | join(', ') }}</td>
+        <td>{{ d.top_crops | join(', ') }}</td>
         <td class="num">{% if d.perishable_share is not none %}{{ "{:.0f}".format(d.perishable_share) }}%{% else %}—{% endif %}</td>
         <td class="num">{% if d.vs_prev5_pct is not none %}{{ "{:+.0f}".format(d.vs_prev5_pct) }}%{% else %}—{% endif %}</td>
       </tr>
@@ -38,86 +63,26 @@
     </tbody>
   </table>
   </div>
-  <p class="muted small">Perishable share = fruits + vegetables, the supply that needs cold chain and fast verification. "vs 5-yr avg" compares {{ latest_year_label }} production with the average of the five preceding published years.</p>
+  <p class="muted small">Perishable share = fruits + vegetables, the supply that needs cold chain and fast verification. "vs 5-yr avg" compares the district's latest published year with the average of the five preceding published years. District names repeat across states (e.g. Aurangabad in Bihar and Maharashtra) — each row is one state-district pair. DES publishes coconut in nuts, not tonnes; coconut is excluded from these tonne totals and labelled separately on each district card.</p>
 </section>
 
-{% if insight %}
-<section class="section" aria-labelledby="insight-h">
-  <h2 id="insight-h">{{ active_district }} — {{ latest_year_label }}</h2>
-  <div class="callout callout--info">
-    <span class="callout__ico" aria-hidden="true">❋</span>
-    <div class="callout__body">
-      <strong>{{ "{:,.0f}".format(insight.total) }} tonnes</strong> across {{ insight.n_crops }} listed crops.
-      Led by {{ insight.top_crops | map(attribute='crop') | join(', ') }}.
-      Perishable (fruits + vegetables) supply: <strong>{{ "{:,.0f}".format(insight.perishable) }} t</strong>{% if insight.perishable_share is not none %} ({{ "{:.0f}".format(insight.perishable_share) }}% of output){% endif %}.
-      {% if insight.vs_prev5_pct is not none %}Production is <strong>{{ "{:+.0f}".format(insight.vs_prev5_pct) }}%</strong> versus the five-year average ({{ "{:,.0f}".format(insight.prev5_avg) }} t).{% endif %}
-    </div>
-  </div>
-  <div class="table-wrap">
-  <table class="data">
-    <thead><tr><th>Year</th><th class="num">Total production (t)</th></tr></thead>
-    <tbody>
-    {% for year, total in insight.year_totals.items() %}
-      <tr{% if year == latest_year_label %} class="cell-strong"{% endif %}>
-        <td class="cell-muted">{{ year }}</td><td class="num">{{ "{:,.0f}".format(total) }}</td>
-      </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-  </div>
-</section>
-
-<section class="section" aria-labelledby="crops-h">
-  <h2 id="crops-h">{{ active_district }} — {{ latest_year_label }} by crop</h2>
-  <p class="muted small">"basis" shows whether the figure is the official annual row or the sum of seasonal rows. Click a crop for its year-by-year trend.</p>
-  <div class="table-wrap">
-  <table class="data">
-    <thead><tr><th>Crop</th><th>Type</th><th class="num">Production (t)</th><th class="num">Area (ha)</th><th class="num">Yield (t/ha)</th><th>basis</th></tr></thead>
-    <tbody>
-    {% for r in summary %}
-      <tr>
-        <td><a href="/districts?district={{ active_district | urlencode }}&crop={{ r.crop | urlencode }}">{{ r.crop }}</a></td>
-        <td class="cell-muted">{{ r.crop_type or "—" }}</td>
-        <td class="num cell-strong">{% if r.production is not none %}{{ "{:,.0f}".format(r.production) }}{% else %}—{% endif %}</td>
-        <td class="num">{% if r.area is not none %}{{ "{:,.0f}".format(r.area) }}{% else %}—{% endif %}</td>
-        <td class="num">{% if r.yield is not none %}{{ "{:,.2f}".format(r.yield) }}{% else %}—{% endif %}</td>
-        <td class="cell-muted">{{ r.basis }}</td>
-      </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-  </div>
-</section>
-
-{% if trend %}
-<section class="section" aria-labelledby="trend-h">
-  <h2 id="trend-h">{{ top_crop }} in {{ active_district }} — year by year</h2>
-  <p class="muted small">Pick another crop from the table above to change this trend.</p>
-  <div class="table-wrap">
-  <table class="data">
-    <thead><tr><th>Year</th><th class="num">Production (t)</th><th class="num">Area (ha)</th><th class="num">Yield (t/ha)</th><th>basis</th></tr></thead>
-    <tbody>
-    {% for t in trend %}
-      <tr>
-        <td class="cell-muted">{{ t.year }}</td>
-        <td class="num cell-strong">{% if t.production is not none %}{{ "{:,.0f}".format(t.production) }}{% else %}—{% endif %}</td>
-        <td class="num">{% if t.area is not none %}{{ "{:,.0f}".format(t.area) }}{% else %}—{% endif %}</td>
-        <td class="num">{% if t.yield is not none %}{{ "{:,.2f}".format(t.yield) }}{% else %}—{% endif %}</td>
-        <td class="cell-muted">{{ t.basis }}</td>
-      </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-  </div>
-</section>
-{% endif %}
-{% endif %}
-
+{% elif raw_rows > 0 and (q or f_state) %}
+<div class="empty">
+  <span class="empty__ico" aria-hidden="true">◌</span>
+  <div class="empty__title">No districts match this filter</div>
+  <div class="empty__hint">Clear the state or search filter to see all districts.</div>
+</div>
+{% elif raw_rows > 0 %}
+<div class="empty">
+  <span class="empty__ico" aria-hidden="true">◌</span>
+  <div class="empty__title">Rollup needs a rebuild</div>
+  <div class="empty__hint">Raw rows are imported but the read model is empty: <code>uv run vervana crops refresh-rollups</code></div>
+</div>
 {% else %}
 <div class="empty">
   <span class="empty__ico" aria-hidden="true">◌</span>
   <div class="empty__title">No district crop data yet</div>
-  <div class="empty__hint">Import the official DES/APY seed: <code>uv run vervana crops import-apy</code></div>
+  <div class="empty__hint">Import the full official DES/APY file: <code>uv run vervana crops import-apy --national</code> (740 districts), or the 3-district pilot seed: <code>uv run vervana crops import-apy</code></div>
 </div>
 {% endif %}
 {% endblock %}
