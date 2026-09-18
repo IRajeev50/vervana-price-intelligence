@@ -893,6 +893,59 @@ def serve(host: str = "127.0.0.1", port: int = 8000) -> None:
     uvicorn.run("vervana.web.app:app", host=host, port=port)
 
 
+# ---------------------------------------------------------------------------
+# crops (district production context, official DES/APY statistics)
+# ---------------------------------------------------------------------------
+crops_app = typer.Typer(
+    help="District crop production (official DES/APY supply context).",
+    no_args_is_help=True,
+)
+app.add_typer(crops_app, name="crops")
+
+
+@crops_app.command("import-apy")
+def crops_import_apy(
+    path: Path = REPO_ROOT / "data" / "seed" / "crop_apy_pilot_districts.csv",
+) -> None:
+    """Import official district crop production (idempotent; safe to re-run)."""
+    from vervana.db.engine import session_scope
+    from vervana.repository.crop_production import import_apy_csv
+
+    with session_scope() as session:
+        res = import_apy_csv(session, path)
+    typer.echo(
+        f"crop production rows added={res['added']} skipped={res['skipped']} rejected={res['rejected']}"
+    )
+    for reason, count in sorted(res["reasons"].items(), key=lambda kv: -kv[1]):
+        typer.echo(f"  rejected [{count}]: {reason}")
+
+
+@crops_app.command("summary")
+def crops_summary() -> None:
+    """Latest-year production per district (annual row preferred; never double-counted)."""
+    from vervana.db.engine import session_scope
+    from vervana.repository.crop_production import (
+        district_index,
+        fetch_year_rows,
+        rollup_crop_year,
+    )
+
+    with session_scope() as session:
+        districts = district_index(session)
+        if not districts:
+            typer.echo("no crop production data - run: uv run vervana crops import-apy")
+            return
+        for d in districts:
+            rows = fetch_year_rows(session, d["district"], d["latest_year"])
+            summary = rollup_crop_year(rows)
+            total = sum(r["production"] or 0 for r in summary)
+            typer.echo(f"{d['district']} ({d['state']}) {d['latest_year']}: {total:,.0f} t")
+            for r in summary[:5]:
+                prod = f"{r['production']:,.0f}" if r["production"] is not None else "-"
+                typer.echo(f"    {r['crop']:<28} {prod:>12} t  [{r['basis']}]")
+
+
 if __name__ == "__main__":  # pragma: no cover
+
     app()
 
