@@ -76,7 +76,7 @@
     <tbody>
     {% for r in summary %}
       <tr>
-        <td><a href="/districts?district={{ active_district | urlencode }}&crop={{ r.crop | urlencode }}">{{ r.crop }}</a></td>
+        <td><a href="/districts?district={{ active_district | urlencode }}&amp;crop={{ r.crop | urlencode }}">{{ r.crop }}</a></td>
         <td class="cell-muted">{{ r.crop_type or "—" }}</td>
         <td class="num cell-strong">{% if r.production is not none %}{{ "{:,.0f}".format(r.production) }}{% else %}—{% endif %}</td>
         <td class="num">{% if r.area is not none %}{{ "{:,.0f}".format(r.area) }}{% else %}—{% endif %}</td>
