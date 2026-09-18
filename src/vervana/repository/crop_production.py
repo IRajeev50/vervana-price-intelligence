@@ -208,3 +208,46 @@ def rollup_crop_trend(rows: list[CropProductionRecord]) -> list[dict]:
             }
         )
     return out
+
+# Fruits and vegetables are the perishable supply: the crop types whose
+# production points at cold-chain and verification demand. Type labels are the
+# source's own ("Vegetable" singular, as DES publishes it).
+PERISHABLE_CROP_TYPES = frozenset({"Fruits", "Vegetable"})
+
+
+def district_insight(session: Session, district: str) -> dict | None:
+    """Headline numbers for one district on the District-wise Insights page.
+
+    Every figure annualises with the same no-double-count rule as the tables;
+    none of this is stored - it is computed from the raw published rows.
+    """
+    latest = latest_year_label(session, district)
+    if latest is None:
+        return None
+    summary = rollup_crop_year(fetch_year_rows(session, district, latest))
+    total = sum(r["production"] or 0 for r in summary)
+    perishable = sum(
+        (r["production"] or 0) for r in summary if r["crop_type"] in PERISHABLE_CROP_TYPES
+    )
+    by_year: dict[str, list[CropProductionRecord]] = defaultdict(list)
+    for r in session.scalars(
+        select(CropProductionRecord).where(CropProductionRecord.district_name == district)
+    ):
+        by_year[r.year_label].append(r)
+    totals = {
+        year: sum(a["production"] or 0 for a in rollup_crop_year(rows))
+        for year, rows in by_year.items()
+    }
+    prev5 = [totals[y] for y in sorted(totals) if y < latest][-5:]
+    prev5_avg = sum(prev5) / len(prev5) if prev5 else None
+    return {
+        "latest_year": latest,
+        "total": total,
+        "n_crops": len(summary),
+        "top_crops": summary[:3],
+        "perishable": perishable,
+        "perishable_share": (perishable / total * 100) if total else None,
+        "prev5_avg": prev5_avg,
+        "vs_prev5_pct": ((total - prev5_avg) / prev5_avg * 100) if prev5_avg else None,
+        "year_totals": dict(sorted(totals.items())),
+    }
