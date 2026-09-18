@@ -78,6 +78,25 @@ uv run vervana supply ndvi                  # Sentinel-2 anomalies (needs free C
 uv run vervana supply rainfall-import my.csv  # IMD district rainfall
 ```
 
+District crop production (official DES/APY statistics, Ministry of Agriculture) is
+the physical supply layer under the price layer - **Research → District insights**
+lists every district with key figures and taps through to a full per-district card.
+The full all-India file (34 states/UTs, 740 districts, 1997-98 to 2022-23, ~455k
+rows) downloads keyless from the India Data Portal; NITI for States aggregates the
+same source and exposes no usable public API:
+
+```bash
+uv run vervana crops import-apy --national   # all-India (downloads ~56 MB once)
+uv run vervana crops import-apy              # 3-district pilot seed only
+uv run vervana crops summary                 # latest-year totals per district
+uv run vervana crops refresh-rollups         # rebuild the read model by hand
+```
+
+Raw rows are stored exactly as published; every total is computed from them via a
+derived rollup, preferring the official annual "Total" row and never adding Total +
+seasonal rows together. DES publishes coconut in nuts, not tonnes - coconut is
+labelled "nuts" and never enters tonne totals.
+
 data.gov.in is often slow (a page can take over a minute), so the connector uses a
 120s timeout and retries slow/failed responses a few times before giving up. A failed
 capture saves nothing but is recorded in `ingest history`; just rerun the same
@@ -118,4 +137,3 @@ make down               # stop them
 Agmarknet price data is published under the **Government Open Data License – India
 (GODL-India)** and carries the **DMI accuracy disclaimer**; both must be shown wherever
 that data appears. See [`docs/OPEN_QUESTIONS.md`](docs/OPEN_QUESTIONS.md).
-
