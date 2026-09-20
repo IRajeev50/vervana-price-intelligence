@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Aspirational India{% endblock %}
+{% block body %}
+<header class="page-head">
+  <div class="page-head__kicker">Research · Government of India</div>
+  <h1>Aspirational India</h1>
+  <p class="page-head__sub">NITI Aayog's Aspirational Districts Programme names the {{ ov.total }} districts
+    the Government of India has prioritised for focused development. This layer overlays that official
+    membership onto the price and production data — because one of the programme's five themes,
+    <strong>Agriculture &amp; Water Resources</strong>, is exactly the supply signal this platform reasons about.</p>
+</header>
+
+<div class="callout callout--info">
+  <span class="callout__ico" aria-hidden="true">◎</span>
+  <div class="callout__body">
+    <strong>Membership and framework, sourced. Scores, not yet.</strong> Everything on this page — the
+    {{ ov.total }} districts, their states, and the five-theme framework — is the official programme
+    definition. The live indicator <em>scores and rankings</em> sit behind NITI's Champions of Change
+    dashboard, which has no open, licensed bulk feed, so this platform does not show them rather than
+    invent them <span class="mono">(RISK[R14])</span>.<br>
+    <span class="muted">Source: <a href="{{ ov.source_url }}">{{ ov.source_name }}</a>. Public sector
+    information under GODL-India. Programme launched January 2018.</span>
+  </div>
+</div>
+
+<section class="section" aria-label="Key figures">
+  <div class="stat-grid">
+    <div class="stat">
+      <div class="stat__value">{{ ov.total }}</div>
+      <div class="stat__label">Aspirational districts</div>
+      <div class="stat__hint">official NITI list</div>
+    </div>
+    <div class="stat">
+      <div class="stat__value">{{ ov.states }}</div>
+      <div class="stat__label">States &amp; UTs</div>
+      <div class="stat__hint">covered by the programme</div>
+    </div>
+    <div class="stat">
+      <div class="stat__value">{{ ov.n_indicators }}</div>
+      <div class="stat__label">Indicators</div>
+      <div class="stat__hint">{{ ov.n_data_points }} data points · 5 themes</div>
+    </div>
+    <div class="stat">
+      <div class="stat__value">{{ ov.covered }}</div>
+      <div class="stat__label">Matched to our crop layer</div>
+      <div class="stat__hint">{% if ov.have_production_layer %}by name, of {{ ov.total }}{% else %}import production data first{% endif %}</div>
+    </div>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="bystate-h">
+  <h2 id="bystate-h">Where they are — districts by state</h2>
+  <p class="muted small">The one distribution on this page with fully-sourced numbers: how the {{ ov.total }}
+    districts split across {{ ov.states }} states and union territories.</p>
+  <div class="bars">
+    {% for row in ov.by_state %}
+    <div class="bar-row">
+      <div class="bar-row__label" title="{{ row.state }}">{{ row.state }}</div>
+      <div class="bar-row__track">
+        <div class="bar-row__fill" style="width: {{ (row.count / ov.max_state_count * 100) | round(1) }}%"></div>
+      </div>
+      <div class="bar-row__val">{{ row.count }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="section" aria-labelledby="themes-h">
+  <h2 id="themes-h">The framework — five themes</h2>
+  <p class="muted small">Districts are ranked on incremental progress across {{ ov.n_indicators }} indicators
+    grouped into five socio-economic themes. Per-theme composite weights are not shown here — secondary
+    sources disagree and we don't assert a figure we can't verify against the primary methodology.</p>
+  <div class="theme-cards">
+    {% for t in ov.themes %}
+    <div class="theme-card {% if t.agri %}theme-card--agri{% endif %}">
+      <p class="theme-card__name">{{ t.name }}</p>
+      <p class="theme-card__blurb">{{ t.blurb }}</p>
+      {% if t.agri %}<span class="theme-card__tag">The signal we use</span>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<div class="callout callout--warn">
+  <span class="callout__ico" aria-hidden="true">⚠</span>
+  <div class="callout__body">
+    <strong>Live indicator scores — feed not connected <span class="mono">(RISK[R14])</span>.</strong>
+    Ranking deltas and per-KPI scores update on NITI's dashboard, but there is no open, licensed export
+    to trace them to. Charts of those scores stay off this page until a real feed is wired — the same
+    rule that keeps every price on this platform tied to its evidence. Connect a sanctioned NITI export
+    and this section becomes a scored, per-district view.
+  </div>
+</div>
+
+<section class="section" aria-labelledby="list-h">
+  <h2 id="list-h">The full list</h2>
+  <form class="filters" method="get" aria-label="Filter by state">
+    <div class="field">
+      <label for="f-state">State / UT</label>
+      <select class="select" id="f-state" name="state">
+        <option value="">All states &amp; UTs</option>
+        {% for s in states %}<option value="{{ s }}" {{ 'selected' if s == active_state }}>{{ s }}</option>{% endfor %}
+      </select>
+    </div>
+    <button class="btn" type="submit">Apply</button>
+  </form>
+  <div class="table-wrap">
+  <table class="data">
+    <thead><tr><th class="num">S.No.</th><th>District</th><th>State / UT</th><th>In our crop data</th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr>
+        <td class="num cell-muted">{{ r.sno }}</td>
+        <td class="cell-strong">{{ r.district }}</td>
+        <td>{{ r.state }}</td>
+        <td>{% if r.has_production %}<span class="adp-have">✓ held</span>{% else %}<span class="adp-have adp-have--no">—</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="muted small">"In our crop data" is a name match against the official DES/APY production layer
+    on <a href="/districts">District insights</a> — it fills in as the national production file is imported
+    (<code>uv run vervana crops import-apy --national</code>). Name variants across sources (e.g. Purnea /
+    Purnia) are not yet reconciled, so this is a floor, not a ceiling.</p>
+</section>
+{% endblock %}

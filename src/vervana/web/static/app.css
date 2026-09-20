@@ -670,3 +670,35 @@ table.data tbody tr:hover td { background: #f5f9f5; }
 .raw-output pre { margin: 0; padding: 18px; white-space: pre-wrap; border-top: 1px solid var(--line); background: #111b16; color: #e7eee9; font: 12px/1.6 var(--mono); max-height: 360px; overflow: auto; }
 @media (max-width: 980px) { .page-head--split { align-items: flex-start; }.digest-summary { grid-template-columns: repeat(3, 1fr); }.digest-summary__note { grid-column: 1/-1; justify-content: flex-start; border-top: 1px solid rgba(255,255,255,.12); }.method-grid { grid-template-columns: 1fr; } }
 @media (max-width: 640px) { .page-head--split { display: block; }.as-of { margin-top: 16px; width: 100%; }.digest-summary { grid-template-columns: repeat(3, 1fr); }.digest-summary__item { padding: 14px 10px; }.digest-summary__value { font-size: 22px; }.digest-summary__label { font-size: 9px; }.content__main { padding-top: 24px; } }
+
+/* --- Aspirational India: horizontal bar chart (server-rendered, no JS) --- */
+.bars { display: grid; gap: 7px; margin: 4px 0 2px; }
+.bar-row { display: grid; grid-template-columns: 168px 1fr 30px; align-items: center; gap: 12px; }
+.bar-row__label { font-size: 13px; color: var(--ink-soft); text-align: right;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar-row__track { background: var(--surface-sunken); border-radius: var(--radius-s); height: 22px; }
+.bar-row__fill { height: 100%; min-width: 3px; background: var(--brand-600);
+  border-radius: var(--radius-s); }
+.bar-row__val { font: 600 13px/1 var(--mono); color: var(--ink-soft);
+  font-variant-numeric: tabular-nums; }
+
+/* theme framework cards */
+.theme-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px; margin-top: 6px; }
+.theme-card { border: 1px solid var(--line); border-radius: var(--radius-m);
+  padding: 15px 16px; background: var(--surface); }
+.theme-card--agri { border-color: var(--brand-600); background: var(--brand-50);
+  box-shadow: inset 3px 0 0 var(--brand-600); }
+.theme-card__name { font-weight: 680; font-size: 14px; margin: 0 0 5px; color: var(--ink); }
+.theme-card__blurb { font-size: 12.5px; color: var(--muted); margin: 0; line-height: 1.5; }
+.theme-card__tag { display: inline-block; margin-top: 9px; font: 600 10px/1 var(--mono);
+  letter-spacing: .06em; text-transform: uppercase; color: var(--brand-700);
+  background: var(--brand-100); border-radius: 20px; padding: 4px 9px; }
+
+/* "in our data" cell badge */
+.adp-have { font: 600 10px/1 var(--mono); letter-spacing: .04em; text-transform: uppercase;
+  color: var(--brand-700); background: var(--brand-100); border-radius: 20px; padding: 3px 8px; }
+.adp-have--no { color: var(--muted); background: var(--surface-sunken); }
+
+@media (max-width: 640px) { .bar-row { grid-template-columns: 110px 1fr; }
+  .bar-row__label { font-size: 12px; } }

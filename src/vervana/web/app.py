@@ -838,3 +838,24 @@ def district_detail_page(request: Request, state: str, district: str, crop: str 
         "district_detail.html",
         _ctx(request, **detail, latest_year_label=detail["insight"]["latest_year"]),
     )
+
+
+@app.get("/aspirational", response_class=HTMLResponse)
+def aspirational_page(request: Request, state: str = ""):
+    """NITI Aspirational Districts: membership + framework + supply overlay.
+
+    Programme membership and the thematic framework are fully sourced; the
+    live KPI/ranking scores are NOT shown because NITI publishes no open,
+    licensed bulk feed for them (RISK[R14]) - we do not invent them.
+    """
+    from vervana.repository.aspirational import listing, overview
+
+    with session_scope() as s:
+        ov = overview(s)
+        rows = listing(s, state=state) if ov["total"] else []
+        states = [r["state"] for r in ov["by_state"]]
+    return TEMPLATES.TemplateResponse(
+        request,
+        "aspirational.html",
+        _ctx(request, ov=ov, rows=rows, states=states, active_state=state),
+    )

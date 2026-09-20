@@ -834,6 +834,7 @@ def setup() -> None:
     data only (commodity/market names); live prices still come from an ingest run.
     """
     from vervana.db.engine import session_scope
+    from vervana.repository.aspirational import import_seed as import_aspirational
     from vervana.repository.registry import seed_registry
     from vervana.setup_status import collect_setup_steps
 
@@ -843,6 +844,10 @@ def setup() -> None:
     settings = get_settings()
     with session_scope() as session:
         counts = seed_registry(session, SEED_DIR)
+        # Aspirational Districts are canonical reference data (the official NITI
+        # list), so a fresh clone gets them here alongside the registry seed.
+        adp = import_aspirational(session, SEED_DIR / "aspirational_districts.csv")
+        counts["aspirational"] = adp["total_in_file"]
     for k, v in counts.items():
         typer.echo(f"     {k:12} {v}")
     typer.echo("")
@@ -980,6 +985,46 @@ def crops_summary(state: str = "") -> None:
             typer.echo(f"    top crops: {', '.join(d['top_crops'])}")
 
 
-if __name__ == "__main__":  # pragma: no cover
+aspirational_app = typer.Typer(
+    help="NITI Aayog Aspirational Districts (programme membership + supply overlay).",
+    no_args_is_help=True,
+)
+app.add_typer(aspirational_app, name="aspirational")
 
+
+@aspirational_app.command("import")
+def aspirational_import(
+    path: Path = SEED_DIR / "aspirational_districts.csv",
+) -> None:
+    """Import the official NITI list of 112 Aspirational Districts (idempotent)."""
+    from vervana.db.engine import session_scope
+    from vervana.repository.aspirational import import_seed
+
+    with session_scope() as session:
+        res = import_seed(session, path)
+    typer.echo(
+        f"aspirational districts: added={res['added']} updated={res['updated']} "
+        f"({res['total_in_file']} in file)"
+    )
+
+
+@aspirational_app.command("summary")
+def aspirational_summary() -> None:
+    """Headline counts, by-state distribution, and overlap with our crop data."""
+    from vervana.db.engine import session_scope
+    from vervana.repository.aspirational import overview
+
+    with session_scope() as session:
+        ov = overview(session)
+    if ov["total"] == 0:
+        typer.echo("no data - run: uv run vervana aspirational import")
+        return
+    typer.echo(f"{ov['total']} districts across {ov['states']} states/UTs")
+    if ov["have_production_layer"]:
+        typer.echo(f"crop-production data held for {ov['covered']} of them")
+    for row in ov["by_state"]:
+        typer.echo(f"  {row['state']:<24} {row['count']}")
+
+
+if __name__ == "__main__":  # pragma: no cover
     app()
