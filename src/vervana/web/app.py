@@ -358,6 +358,120 @@ def digest_page(request: Request):
     )
 
 
+# Quick-commerce manual panel: a human checks the apps and types today's prices.
+# This is the sanctioned path (no scraping, see connectors/quickcommerce.py); each
+# entry flows through the same importer and inherits full provenance.
+QCOMM_PLATFORMS = ["Blinkit", "Zepto", "Swiggy Instamart", "BigBasket", "JioMart", "Amazon Fresh"]
+QCOMM_PACKS = [
+    ("0.25", "250 g"),
+    ("0.5", "500 g"),
+    ("1", "1 kg"),
+    ("2", "2 kg"),
+    ("5", "5 kg"),
+]
+
+
+def _recent_panel_entries(session, limit: int = 25) -> list[dict]:
+    from vervana.models.retail import RetailOfferDetail
+
+    rows = session.execute(
+        select(PriceObservation, RetailOfferDetail, Commodity.canonical_name)
+        .join(RetailOfferDetail, RetailOfferDetail.observation_id == PriceObservation.id)
+        .join(Commodity, Commodity.id == PriceObservation.commodity_id)
+        .where(PriceObservation.source_class == SourceClass.retail_offer)
+        .order_by(PriceObservation.observed_at.desc(), PriceObservation.id.desc())
+        .limit(limit)
+    ).all()
+    out = []
+    for obs, detail, cname in rows:
+        out.append(
+            {
+                "id": obs.id,
+                "date": to_ist(obs.observed_at).strftime("%d %b"),
+                "commodity": cname,
+                "platform": detail.platform,
+                "pack": detail.pack_size_raw,
+                "price": f"₹{detail.selling_price_paise / 100:,.0f}",
+                "per_kg": f"₹{obs.canonical_price_paise_per_kg / 100:,.0f}/kg",
+            }
+        )
+    return out
+
+
+@app.get("/panel", response_class=HTMLResponse)
+def qcomm_panel(request: Request, ok: str = "", err: str = ""):
+    from vervana.digest import commodity_options
+
+    with session_scope() as s:
+        options = commodity_options(s)
+        all_commodities = [
+            c
+            for (c,) in s.execute(
+                select(Commodity.canonical_name).order_by(Commodity.canonical_name)
+            )
+        ]
+        recent = _recent_panel_entries(s)
+    return TEMPLATES.TemplateResponse(
+        request,
+        "panel.html",
+        _ctx(
+            request,
+            platforms=QCOMM_PLATFORMS,
+            packs=QCOMM_PACKS,
+            panelled=options["qcomm"],
+            all_commodities=all_commodities,
+            recent=recent,
+            today=to_ist(now_utc()).strftime("%Y-%m-%d"),
+            ok=ok,
+            err=err,
+        ),
+    )
+
+
+@app.post("/panel")
+def qcomm_panel_submit(
+    request: Request,
+    commodity: str = Form(...),
+    platform: str = Form(...),
+    pack_kg: str = Form(...),
+    pack_label: str = Form(""),
+    selling_price_rupees: str = Form(...),
+    mrp_rupees: str = Form(""),
+    product_url: str = Form(""),
+    observed_date: str = Form(""),
+):
+    from urllib.parse import quote
+
+    from vervana.connectors.quickcommerce import QuickCommerceConnector
+
+    date = observed_date.strip() or to_ist(now_utc()).strftime("%Y-%m-%d")
+    label = pack_label.strip() or dict(QCOMM_PACKS).get(pack_kg, f"{pack_kg} kg")
+    # Provenance: the actual product link is best; else a stable manual-panel URI so
+    # the row is still traceable to who/where it was recorded (never left blank).
+    src = product_url.strip() or (
+        f"manual-panel://{platform.lower().replace(' ', '-')}/"
+        f"{commodity.lower().replace(' ', '-')}/{label.replace(' ', '')}/{date}"
+    )
+    record = {
+        "platform": platform,
+        "sku_title": f"{commodity} {label}".strip(),
+        "commodity": commodity,
+        "pack_size_raw": label,
+        "pack_kg": pack_kg,
+        "mrp_rupees": mrp_rupees,
+        "selling_price_rupees": selling_price_rupees,
+        "fees_rupees": "",
+        "observed_date": date,
+        "source_url": src,
+    }
+    with session_scope() as s:
+        res = QuickCommerceConnector().ingest(s, [record], mode="panel")
+    if res.accepted:
+        return RedirectResponse(f"/panel?ok={quote(f'{commodity} · {platform}')}", status_code=303)
+    reason = res.rejections[0][0] if res.rejections else "could not record entry"
+    return RedirectResponse(f"/panel?err={quote(reason)}", status_code=303)
+
+
 @app.get("/forecast", response_class=HTMLResponse)
 def forecast_page(request: Request):
     from vervana.forecast import load_decision

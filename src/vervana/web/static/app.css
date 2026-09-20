@@ -727,3 +727,13 @@ table.data tbody tr:hover td { background: #f5f9f5; }
 .freshness-item--live .freshness-item__tag { color: var(--ok); background: var(--ok-bg); }
 .freshness-item--panel { box-shadow: inset 3px 0 0 var(--warn); }
 .freshness-item--panel .freshness-item__tag { color: var(--warn); background: var(--warn-bg); }
+
+/* --- Quick-commerce price panel: entry form --- */
+.entry-form { display: flex; flex-direction: column; gap: 14px; margin: 4px 0 10px; }
+.entry-form__row { display: flex; flex-wrap: wrap; gap: 14px 16px; align-items: flex-end; }
+.entry-form .field { display: flex; flex-direction: column; gap: 5px; flex: 1 1 180px; min-width: 150px; }
+.entry-form .field label { font-weight: 650; font-size: 12.5px; color: var(--ink-soft); }
+.entry-form .field--wide { flex: 1 1 380px; }
+.entry-form .input, .entry-form .select { width: 100%; }
+.entry-form__actions { display: flex; align-items: flex-end; flex: 0 0 auto; }
+.entry-form__actions .btn { min-height: 40px; padding: 0 22px; }
