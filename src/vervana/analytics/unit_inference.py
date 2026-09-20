@@ -43,40 +43,54 @@ class InferredUnit:
 
 
 def _video_medians(session: Session) -> dict[str, float]:
-    market_ids = [
-        m.id
-        for m in session.scalars(select(Market).where(Market.canonical_name.in_(VIDEO_MARKETS)))
-    ]
+    # One joined query returns (commodity_name, low, high) tuples - no per-row
+    # Commodity fetch (the old N+1), no full ORM row loads.
     grouped: dict[str, list[float]] = defaultdict(list)
-    if not market_ids:
-        return {}
-    for r in session.scalars(
-        select(PriceObservation).where(
-            PriceObservation.source_class == SourceClass.quote_indicative,
-            PriceObservation.market_id.in_(market_ids),
+    rows = session.execute(
+        select(
+            Commodity.canonical_name,
+            PriceObservation.price_low_paise,
+            PriceObservation.price_high_paise,
         )
-    ):
-        c = session.get(Commodity, r.commodity_id).canonical_name
-        grouped[c].append((r.price_low_paise + r.price_high_paise) / 2)
+        .join(Commodity, Commodity.id == PriceObservation.commodity_id)
+        .join(Market, Market.id == PriceObservation.market_id)
+        .where(
+            PriceObservation.source_class == SourceClass.quote_indicative,
+            Market.canonical_name.in_(VIDEO_MARKETS),
+        )
+    )
+    for name, low, high in rows:
+        grouped[name].append((low + high) / 2)
     return {c: statistics.median(v) for c, v in grouped.items()}
 
 
-def _agmarknet_medians(session: Session) -> dict[str, float]:
+def _agmarknet_medians(session: Session, only: set[str] | None = None) -> dict[str, float]:
+    # Restricted to the commodities that actually need a yardstick (the video corpus),
+    # and selected as (name, value) tuples via a join - previously this scanned every
+    # executed_summary row (~90k) and did one Commodity query per row (a 12s N+1).
+    if only is not None and not only:
+        return {}
     grouped: dict[str, list[float]] = defaultdict(list)
-    for r in session.scalars(
-        select(PriceObservation).where(
+    stmt = (
+        select(Commodity.canonical_name, PriceObservation.canonical_price_paise_per_kg)
+        .join(Commodity, Commodity.id == PriceObservation.commodity_id)
+        .where(
             PriceObservation.source_class == SourceClass.executed_summary,
             PriceObservation.canonical_price_paise_per_kg.is_not(None),
         )
-    ):
-        c = session.get(Commodity, r.commodity_id).canonical_name
-        grouped[c].append(float(r.canonical_price_paise_per_kg))
+    )
+    if only is not None:
+        stmt = stmt.where(Commodity.canonical_name.in_(only))
+    for name, value in session.execute(stmt):
+        grouped[name].append(float(value))
     return {c: statistics.median(v) for c, v in grouped.items()}
 
 
 def infer_units(session: Session) -> dict[str, InferredUnit]:
     video = _video_medians(session)
-    agmarknet = _agmarknet_medians(session)
+    # Only the video-corpus commodities are ever read out of `agmarknet` below, so
+    # compute medians for just those rather than for all ~236 commodities.
+    agmarknet = _agmarknet_medians(session, only=set(video.keys()))
     out: dict[str, InferredUnit] = {}
     for commodity, vmed in video.items():
         amed = agmarknet.get(commodity)

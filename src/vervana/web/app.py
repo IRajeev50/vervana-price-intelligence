@@ -360,8 +360,10 @@ def digest_page(request: Request):
         options = commodity_options(s)
         valid = set(options["qcomm"]) | set(options["wholesale_only"])
         selected = [c for c in picked if c in valid]
-        text = build_digest(s, selected or None)
+        # Build the lines once and reuse them for the text payload (build_digest used
+        # to recompute them - doubling the per-request work).
         lines = build_lines(s, selected or None)
+        text = build_digest(s, lines=lines)
     priced = sum(1 for line in lines if line.ref_kg is not None or line.retail_kg is not None)
     complete = sum(1 for line in lines if line.ref_kg is not None and line.retail_kg is not None)
     return TEMPLATES.TemplateResponse(

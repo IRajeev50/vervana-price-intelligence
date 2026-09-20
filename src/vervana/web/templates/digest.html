@@ -18,21 +18,29 @@
 </div>
 
 <form class="basket-picker" method="get" aria-label="Choose commodities">
-  <div class="basket-picker__field">
-    <label for="basket">Build your basket <span class="muted small">— ⌘/Ctrl-click to pick several</span></label>
-    <select class="select" id="basket" name="item" multiple size="8">
-      <optgroup label="Wholesale + quick-commerce (full spread) — {{ options.qcomm|length }}">
-        {% for c in options.qcomm %}<option value="{{ c }}" {{ 'selected' if c in selected }}>{{ c }} · q-comm</option>{% endfor %}
-      </optgroup>
-      <optgroup label="Wholesale only (Agmarknet reference) — {{ options.wholesale_only|length }}">
-        {% for c in options.wholesale_only %}<option value="{{ c }}" {{ 'selected' if c in selected }}>{{ c }}</option>{% endfor %}
-      </optgroup>
-    </select>
+  <div class="basket-picker__head">
+    <div><strong>Build your basket</strong> <span class="muted small">— tick any number of commodities, then Update board</span></div>
+    <div class="basket-picker__actions">
+      <button class="btn" type="submit">Update board</button>
+      <a class="btn btn--ghost" href="/digest">Reset to default</a>
+    </div>
   </div>
-  <div class="basket-picker__actions">
-    <button class="btn" type="submit">Update board</button>
-    <a class="btn btn--ghost" href="/digest">Reset to default</a>
-  </div>
+  <fieldset class="checkset">
+    <legend>Wholesale + quick-commerce · full spread ({{ options.qcomm|length }})</legend>
+    <div class="checkset__grid">
+      {% for c in options.qcomm %}
+      <label class="checkopt checkopt--q"><input type="checkbox" name="item" value="{{ c }}" {{ 'checked' if c in selected }}><span>{{ c }}</span></label>
+      {% endfor %}
+    </div>
+  </fieldset>
+  <fieldset class="checkset">
+    <legend>Wholesale only · Agmarknet reference ({{ options.wholesale_only|length }})</legend>
+    <div class="checkset__grid checkset__grid--scroll">
+      {% for c in options.wholesale_only %}
+      <label class="checkopt"><input type="checkbox" name="item" value="{{ c }}" {{ 'checked' if c in selected }}><span>{{ c }}</span></label>
+      {% endfor %}
+    </div>
+  </fieldset>
   <p class="muted small basket-picker__hint">Quick-commerce retail is panelled for <strong>{{ options.qcomm|length }}</strong>
     commodities; the other <strong>{{ options.wholesale_only|length }}</strong> show the real Agmarknet
     wholesale price with no retail spread (never a fabricated one). See <em>Getting real-time prices</em> below.</p>

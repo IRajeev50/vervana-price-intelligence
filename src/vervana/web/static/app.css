@@ -703,17 +703,26 @@ table.data tbody tr:hover td { background: #f5f9f5; }
 @media (max-width: 640px) { .bar-row { grid-template-columns: 88px 1fr 24px; gap: 8px; }
   .bar-row__label { font-size: 12px; } .bar-row__val { font-size: 12px; } }
 
-/* --- HoReCa digest: basket picker --- */
-.basket-picker { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px 18px;
-  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-m);
-  padding: 16px 18px; margin: 0 0 20px; }
-.basket-picker__field { display: flex; flex-direction: column; gap: 6px; flex: 1 1 340px; min-width: 260px; }
-.basket-picker__field label { font-weight: 650; font-size: 13px; color: var(--ink-soft); }
-.basket-picker__field .select { width: 100%; height: auto; padding: 6px; }
-.basket-picker__field optgroup { font: 600 11px/1.6 var(--mono); color: var(--muted); }
-.basket-picker__field option { font: 400 13px/1.7 var(--font); color: var(--ink); padding: 2px 4px; }
+/* --- HoReCa digest: basket picker (checkboxes; pick any number, no modifier key) --- */
+.basket-picker { background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius-m); padding: 16px 18px; margin: 0 0 20px; }
+.basket-picker__head { display: flex; flex-wrap: wrap; justify-content: space-between;
+  align-items: center; gap: 10px 16px; margin-bottom: 14px; }
 .basket-picker__actions { display: flex; gap: 10px; }
-.basket-picker__hint { flex: 1 1 100%; margin: 2px 0 0; }
+.basket-picker__hint { margin: 12px 0 0; }
+.checkset { border: 0; margin: 0 0 12px; padding: 0; min-width: 0; }
+.checkset legend { font: 600 11px/1 var(--mono); letter-spacing: .04em; text-transform: uppercase;
+  color: var(--muted); padding: 0; margin-bottom: 8px; }
+.checkset__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 2px 14px; }
+.checkset__grid--scroll { max-height: 188px; overflow-y: auto; border: 1px solid var(--line);
+  border-radius: var(--radius-s); padding: 10px 12px; background: var(--surface-sunken); }
+.checkopt { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-soft);
+  padding: 3px 2px; cursor: pointer; border-radius: 4px; }
+.checkopt:hover { color: var(--ink); }
+.checkopt input { accent-color: var(--brand-600); width: 15px; height: 15px; flex: 0 0 auto; margin: 0; }
+.checkopt span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.checkopt--q { font-weight: 600; color: var(--ink); }
 
 /* --- HoReCa digest: real-time freshness explainer --- */
 .freshness-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
