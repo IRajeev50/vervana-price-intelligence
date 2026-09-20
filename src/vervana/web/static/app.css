@@ -700,5 +700,5 @@ table.data tbody tr:hover td { background: #f5f9f5; }
   color: var(--brand-700); background: var(--brand-100); border-radius: 20px; padding: 3px 8px; }
 .adp-have--no { color: var(--muted); background: var(--surface-sunken); }
 
-@media (max-width: 640px) { .bar-row { grid-template-columns: 110px 1fr; }
-  .bar-row__label { font-size: 12px; } }
+@media (max-width: 640px) { .bar-row { grid-template-columns: 88px 1fr 24px; gap: 8px; }
+  .bar-row__label { font-size: 12px; } .bar-row__val { font-size: 12px; } }

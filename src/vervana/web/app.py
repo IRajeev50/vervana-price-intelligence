@@ -37,7 +37,26 @@ from vervana.setup_status import collect_setup_steps
 from vervana.time import format_ist, now_utc, to_ist
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+STATIC_DIR = Path(__file__).parent / "static"
 TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+
+
+def _asset_version() -> str:
+    """Cache-busting token for /static/app.css.
+
+    The stylesheet URL is unversioned, so browsers (Safari especially) hold a
+    stale copy after a deploy and render new markup with old CSS. Stamping the
+    css file's mtime onto the link means any change ships a fresh URL and reaches
+    every browser without a manual hard-refresh.
+    """
+    try:
+        return str(int((STATIC_DIR / "app.css").stat().st_mtime))
+    except OSError:
+        return "0"
+
+
+# Exposed to every template (base.html appends it to the stylesheet href).
+TEMPLATES.env.globals["asset_ver"] = _asset_version()
 
 app = FastAPI(title="Vervana — Price Intelligence")
 
