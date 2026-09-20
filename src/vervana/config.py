@@ -53,6 +53,14 @@ class Settings(BaseSettings):
     site_user: str | None = None
     site_password: str | None = None
 
+    # Write-surface auth for the manual price panel (/panel). When BOTH are set,
+    # adding quick-commerce prices requires HTTP basic auth even if the rest of the
+    # site is public - so a public read-only deployment can still restrict who
+    # writes retail observations. If unset, the panel falls back to the site
+    # credentials above; if neither is set, the panel is open (local dev).
+    panel_user: str | None = None
+    panel_password: str | None = None
+
     # --- Agmarknet 2.0 public API (api.agmarknet.gov.in) ---
     # Keyless: the 2.0 report endpoints are public (browser-like headers required).
     # The old data.gov.in resource went stale in Nov 2025, so the connector was
@@ -93,6 +101,7 @@ class Settings(BaseSettings):
 
     # --- Secrets (no real defaults; must come from env when the feature needs them) ---
 
+
 def get_settings() -> Settings:
     """Return a freshly-loaded Settings instance.
 
@@ -101,4 +110,3 @@ def get_settings() -> Settings:
     onto the returned value themselves.
     """
     return Settings()
-

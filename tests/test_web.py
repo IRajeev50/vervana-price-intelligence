@@ -74,7 +74,6 @@ def test_review_and_ingest_pages(client):
     assert client.get("/ingest").status_code == 200
 
 
-
 def test_digest_is_structured_and_keeps_provenance(client):
     r = client.get("/digest")
     assert r.status_code == 200
@@ -99,3 +98,47 @@ def test_site_basic_auth_gate(client, monkeypatch):
     assert r.status_code == 200
     # The JSON API stays key-gated and is not covered by the site gate.
     assert client.get("/api/observations/1").status_code == 200
+
+
+def test_panel_write_gate(client, monkeypatch):
+    """The manual price panel can be locked while the rest of the site stays public."""
+    # Open by default (local dev, no credentials configured).
+    assert client.get("/panel").status_code == 200
+
+    # Panel credentials protect just the write surface.
+    monkeypatch.setenv("VERVANA_PANEL_USER", "panelist")
+    monkeypatch.setenv("VERVANA_PANEL_PASSWORD", "p@ss")
+    unauth = client.get("/panel")
+    assert unauth.status_code == 401
+    assert unauth.headers["www-authenticate"].startswith("Basic")
+    assert (
+        client.post(
+            "/panel",
+            data={
+                "commodity": "Potato",
+                "platform": "Blinkit",
+                "pack_kg": "1",
+                "selling_price_rupees": "39",
+            },
+            follow_redirects=False,
+        ).status_code
+        == 401
+    )
+    # ... while public read pages stay open (no site credentials set).
+    assert client.get("/").status_code == 200
+    assert client.get("/digest").status_code == 200
+
+    # With the right credentials the panel opens and accepts a write.
+    assert client.get("/panel", auth=("panelist", "p@ss")).status_code == 200
+    ok = client.post(
+        "/panel",
+        data={
+            "commodity": "Potato",
+            "platform": "Blinkit",
+            "pack_kg": "1",
+            "selling_price_rupees": "39",
+        },
+        auth=("panelist", "p@ss"),
+        follow_redirects=False,
+    )
+    assert ok.status_code == 303

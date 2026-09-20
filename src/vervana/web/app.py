@@ -16,7 +16,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from types import SimpleNamespace as _NS
 
-from fastapi import FastAPI, Form, HTTPException, Request
+from fastapi import Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -93,6 +93,28 @@ async def site_basic_auth(request: Request, call_next):
             headers={"WWW-Authenticate": 'Basic realm="vervana"'},
         )
     return await call_next(request)
+
+
+def require_panel_auth(request: Request) -> None:
+    """Gate the manual price panel (/panel) behind HTTP basic auth on a shared deploy.
+
+    Uses the panel_* credentials, falling back to the site_* credentials. When
+    neither is configured the panel stays open, so local dev is frictionless; a
+    public read-only deployment can protect just the write surface by setting the
+    panel credentials without gating the whole site.
+    """
+    settings = get_settings()
+    user = settings.panel_user or settings.site_user
+    password = settings.panel_password or settings.site_password
+    if not (user and password):
+        return
+    expected = "Basic " + base64.b64encode(f"{user}:{password}".encode()).decode()
+    if not hmac.compare_digest(request.headers.get("authorization", ""), expected):
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required to add panel prices",
+            headers={"WWW-Authenticate": 'Basic realm="vervana-panel"'},
+        )
 
 
 def _paise_to_rupee(paise: int | None) -> str:
@@ -398,7 +420,7 @@ def _recent_panel_entries(session, limit: int = 25) -> list[dict]:
     return out
 
 
-@app.get("/panel", response_class=HTMLResponse)
+@app.get("/panel", response_class=HTMLResponse, dependencies=[Depends(require_panel_auth)])
 def qcomm_panel(request: Request, ok: str = "", err: str = ""):
     from vervana.digest import commodity_options
 
@@ -428,7 +450,7 @@ def qcomm_panel(request: Request, ok: str = "", err: str = ""):
     )
 
 
-@app.post("/panel")
+@app.post("/panel", dependencies=[Depends(require_panel_auth)])
 def qcomm_panel_submit(
     request: Request,
     commodity: str = Form(...),
