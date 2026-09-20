@@ -198,3 +198,14 @@ def test_panel_form_records_a_sourced_entry(tmp_path, monkeypatch):
             .select_from(PriceObservation)
             .where(PriceObservation.source_class == SourceClass.retail_offer)
         ) == len(obs)
+
+
+def test_build_digest_reuses_precomputed_lines(seeded: Session):
+    """The route builds lines once and passes them in; text must match either way."""
+    from vervana.digest import build_digest, build_lines
+
+    QuickCommerceConnector().import_csv(seeded, SAMPLE)
+    lines = build_lines(seeded, ["Potato", "Onion"])
+    # Passing lines= must not recompute and must yield the same payload as the
+    # commodity-list path (guards the perf refactor that removed a double build).
+    assert build_digest(seeded, lines=lines) == build_digest(seeded, ["Potato", "Onion"])

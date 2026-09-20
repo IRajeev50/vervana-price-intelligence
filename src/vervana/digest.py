@@ -220,7 +220,12 @@ def _rupees(paise: int | None) -> str:
     return "—" if paise is None else f"₹{paise / 100:,.0f}/kg"
 
 
-def build_digest(session: Session, commodities: list[str] | None = None) -> str:
+def build_digest(
+    session: Session,
+    commodities: list[str] | None = None,
+    *,
+    lines: list[Line] | None = None,
+) -> str:
     # RISK[R1-INFO-CHANGES-BEHAVIOUR]: This digest assumes that showing a buyer the
     # wholesale-vs-retail spread will change their procurement decisions. A 72-village RCT
     # (Mitra, Mookherjee, Torero & Visaria 2017) found daily price info did NOT move
@@ -229,7 +234,8 @@ def build_digest(session: Session, commodities: list[str] | None = None) -> str:
     # ASSUMPTION, not a proven fact. Validate with actual buyer behaviour before pricing on
     # it. Evidence: docs/RISK_REGISTER.md#r1-info-changes-behaviour
     # Verdict: PENDING
-    lines = build_lines(session, commodities)
+    if lines is None:
+        lines = build_lines(session, commodities)
     today = to_ist(now_utc()).strftime("%d %b %Y")
     out = [f"*Vervana — HoReCa procurement digest*  ({today})", ""]
     any_data = False
