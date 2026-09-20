@@ -147,6 +147,35 @@ def _latest_delhi_video(session: Session, commodity_id: int, scale: float | None
     return recent[0].id, kg
 
 
+def commodity_options(session: Session) -> dict:
+    """Commodities selectable for the digest, split by evidence available.
+
+    'qcomm' commodities have a quick-commerce retail offer AND a wholesale
+    reference, so they yield a full spread. 'wholesale_only' commodities have an
+    Agmarknet reference but no retail panel price yet - selectable, but the board
+    shows their wholesale price with no spread (honest, not a fabricated retail).
+    """
+
+    def _names(source_class: SourceClass) -> set[str]:
+        return set(
+            session.scalars(
+                select(Commodity.canonical_name)
+                .join(PriceObservation, PriceObservation.commodity_id == Commodity.id)
+                .where(
+                    PriceObservation.source_class == source_class,
+                    PriceObservation.canonical_price_paise_per_kg.is_not(None),
+                )
+                .distinct()
+            )
+        )
+
+    wholesale = _names(SourceClass.executed_summary)
+    retail = _names(SourceClass.retail_offer)
+    qcomm = sorted(retail & wholesale)
+    wholesale_only = sorted(wholesale - retail)
+    return {"qcomm": qcomm, "wholesale_only": wholesale_only}
+
+
 def build_lines(session: Session, commodities: list[str] | None = None) -> list[Line]:
     from vervana.analytics.unit_inference import infer_units
 

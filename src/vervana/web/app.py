@@ -80,13 +80,12 @@ async def site_basic_auth(request: Request, call_next):
     JSON API (/api/*) stays API-key gated and is not covered by this gate.
     """
     settings = get_settings()
-    if not (settings.site_user and settings.site_password) or request.url.path.startswith(
-        "/api/"
-    ):
+    if not (settings.site_user and settings.site_password) or request.url.path.startswith("/api/"):
         return await call_next(request)
-    expected = "Basic " + base64.b64encode(
-        f"{settings.site_user}:{settings.site_password}".encode()
-    ).decode()
+    expected = (
+        "Basic "
+        + base64.b64encode(f"{settings.site_user}:{settings.site_password}".encode()).decode()
+    )
     if not hmac.compare_digest(request.headers.get("authorization", ""), expected):
         return PlainTextResponse(
             "Authentication required",
@@ -330,9 +329,17 @@ def benchmark_page(request: Request, commodity: str = "Onion"):
 
 @app.get("/digest", response_class=HTMLResponse)
 def digest_page(request: Request):
+    from vervana.digest import DEFAULT_BASKET, commodity_options
+
+    # The buyer picks the basket via the dropdown; empty selection falls back to
+    # the default basket rather than an empty board.
+    picked = [c.strip() for c in request.query_params.getlist("item") if c.strip()]
     with session_scope() as s:
-        text = build_digest(s)
-        lines = build_lines(s)
+        options = commodity_options(s)
+        valid = set(options["qcomm"]) | set(options["wholesale_only"])
+        selected = [c for c in picked if c in valid]
+        text = build_digest(s, selected or None)
+        lines = build_lines(s, selected or None)
     priced = sum(1 for line in lines if line.ref_kg is not None or line.retail_kg is not None)
     complete = sum(1 for line in lines if line.ref_kg is not None and line.retail_kg is not None)
     return TEMPLATES.TemplateResponse(
@@ -345,6 +352,8 @@ def digest_page(request: Request):
             digest_date=to_ist(now_utc()).strftime("%d %b %Y"),
             priced=priced,
             complete=complete,
+            options=options,
+            selected=selected or list(DEFAULT_BASKET),
         ),
     )
 
@@ -814,8 +823,11 @@ def _read_probe() -> list[dict]:
             for r in csv.DictReader(fh)
         ]
 
+
 @app.get("/districts", response_class=HTMLResponse)
-def district_directory_page(request: Request, state: str = "", q: str = "", sort: str = "production"):
+def district_directory_page(
+    request: Request, state: str = "", q: str = "", sort: str = "production"
+):
     """District-wise insights: national directory, key figures only per district.
 
     Tap a district to open its full detail card. Read-only; figures come from

@@ -92,3 +92,47 @@ def test_digest_shows_spread_and_disclaimers(seeded: Session):
     assert "retail" in text and "Blinkit" in text
     assert "Not trading advice" in text
     assert "never averaged" in text
+
+
+def test_commodity_options_splits_qcomm_from_wholesale_only(seeded: Session):
+    """The digest picker offers full-spread commodities apart from wholesale-only ones."""
+    from datetime import datetime
+
+    from vervana.db.base import TimeBasis
+    from vervana.digest import commodity_options
+    from vervana.models.entities import Commodity
+    from vervana.repository.prices import insert_observation
+    from vervana.time import IST
+
+    QuickCommerceConnector().import_csv(seeded, SAMPLE)  # retail for 6 commodities
+    market_id = seeded.scalar(select(PriceObservation.market_id))
+
+    def add_wholesale(name: str) -> None:
+        c = seeded.scalar(select(Commodity).where(Commodity.canonical_name == name))
+        insert_observation(
+            seeded,
+            commodity_id=c.id,
+            market_id=market_id,
+            source_class=SourceClass.executed_summary,
+            price_low_paise=1500,
+            price_high_paise=2000,
+            unit_raw="Quintal",
+            canonical_price_paise_per_kg=1800,
+            source_url="https://x",
+            raw_quote="{}",
+            observed_at=datetime(2026, 9, 10, tzinfo=IST),
+            time_basis=TimeBasis.daily_summary,
+        )
+
+    add_wholesale("Tomato")  # retail + wholesale -> full spread
+    add_wholesale("Apple")  # wholesale only
+    seeded.flush()
+
+    opts = commodity_options(seeded)
+    assert "Tomato" in opts["qcomm"]
+    assert "Apple" in opts["wholesale_only"]
+    assert "Apple" not in opts["qcomm"]
+    # A retail commodity with no wholesale reference is not a full-spread pick, and
+    # nothing appears in both buckets.
+    assert "Potato" not in opts["qcomm"]
+    assert set(opts["qcomm"]).isdisjoint(opts["wholesale_only"])
