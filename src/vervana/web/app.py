@@ -37,7 +37,26 @@ from vervana.setup_status import collect_setup_steps
 from vervana.time import format_ist, now_utc, to_ist
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+STATIC_DIR = Path(__file__).parent / "static"
 TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+
+
+def _asset_version() -> str:
+    """Cache-busting token for /static/app.css.
+
+    The stylesheet URL is unversioned, so browsers (Safari especially) hold a
+    stale copy after a deploy and render new markup with old CSS. Stamping the
+    css file's mtime onto the link means any change ships a fresh URL and reaches
+    every browser without a manual hard-refresh.
+    """
+    try:
+        return str(int((STATIC_DIR / "app.css").stat().st_mtime))
+    except OSError:
+        return "0"
+
+
+# Exposed to every template (base.html appends it to the stylesheet href).
+TEMPLATES.env.globals["asset_ver"] = _asset_version()
 
 app = FastAPI(title="Vervana — Price Intelligence")
 
@@ -837,4 +856,25 @@ def district_detail_page(request: Request, state: str, district: str, crop: str 
         request,
         "district_detail.html",
         _ctx(request, **detail, latest_year_label=detail["insight"]["latest_year"]),
+    )
+
+
+@app.get("/aspirational", response_class=HTMLResponse)
+def aspirational_page(request: Request, state: str = ""):
+    """NITI Aspirational Districts: membership + framework + supply overlay.
+
+    Programme membership and the thematic framework are fully sourced; the
+    live KPI/ranking scores are NOT shown because NITI publishes no open,
+    licensed bulk feed for them (RISK[R14]) - we do not invent them.
+    """
+    from vervana.repository.aspirational import listing, overview
+
+    with session_scope() as s:
+        ov = overview(s)
+        rows = listing(s, state=state) if ov["total"] else []
+        states = [r["state"] for r in ov["by_state"]]
+    return TEMPLATES.TemplateResponse(
+        request,
+        "aspirational.html",
+        _ctx(request, ov=ov, rows=rows, states=states, active_state=state),
     )

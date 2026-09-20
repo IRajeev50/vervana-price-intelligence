@@ -23,6 +23,8 @@
       <span class="nav-ico" aria-hidden="true">▦</span>Outlook calendar</a>
     <a class="nav-link" href="/districts" {{ 'aria-current="page"' if path.startswith('/districts') }}>
       <span class="nav-ico" aria-hidden="true">◍</span>District insights</a>
+    <a class="nav-link" href="/aspirational" {{ 'aria-current="page"' if path.startswith('/aspirational') }}>
+      <span class="nav-ico" aria-hidden="true">◆</span>Aspirational India</a>
   </div>
   <div class="nav-group">
     <div class="nav-group__label">Operations</div>
@@ -39,7 +41,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
   <title>{% block title %}Vervana{% endblock %} — Vervana</title>
-  <link rel="stylesheet" href="/static/app.css">
+  <link rel="stylesheet" href="/static/app.css?v={{ asset_ver }}">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to main content</a>
