@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from vervana.connectors.quickcommerce import QuickCommerceConnector, ScraperForbiddenError
@@ -92,3 +92,109 @@ def test_digest_shows_spread_and_disclaimers(seeded: Session):
     assert "retail" in text and "Blinkit" in text
     assert "Not trading advice" in text
     assert "never averaged" in text
+
+
+def test_commodity_options_splits_qcomm_from_wholesale_only(seeded: Session):
+    """The digest picker offers full-spread commodities apart from wholesale-only ones."""
+    from datetime import datetime
+
+    from vervana.db.base import TimeBasis
+    from vervana.digest import commodity_options
+    from vervana.models.entities import Commodity
+    from vervana.repository.prices import insert_observation
+    from vervana.time import IST
+
+    QuickCommerceConnector().import_csv(seeded, SAMPLE)  # retail for 6 commodities
+    market_id = seeded.scalar(select(PriceObservation.market_id))
+
+    def add_wholesale(name: str) -> None:
+        c = seeded.scalar(select(Commodity).where(Commodity.canonical_name == name))
+        insert_observation(
+            seeded,
+            commodity_id=c.id,
+            market_id=market_id,
+            source_class=SourceClass.executed_summary,
+            price_low_paise=1500,
+            price_high_paise=2000,
+            unit_raw="Quintal",
+            canonical_price_paise_per_kg=1800,
+            source_url="https://x",
+            raw_quote="{}",
+            observed_at=datetime(2026, 9, 10, tzinfo=IST),
+            time_basis=TimeBasis.daily_summary,
+        )
+
+    add_wholesale("Tomato")  # retail + wholesale -> full spread
+    add_wholesale("Apple")  # wholesale only
+    seeded.flush()
+
+    opts = commodity_options(seeded)
+    assert "Tomato" in opts["qcomm"]
+    assert "Apple" in opts["wholesale_only"]
+    assert "Apple" not in opts["qcomm"]
+    # A retail commodity with no wholesale reference is not a full-spread pick, and
+    # nothing appears in both buckets.
+    assert "Potato" not in opts["qcomm"]
+    assert set(opts["qcomm"]).isdisjoint(opts["wholesale_only"])
+
+
+def test_panel_form_records_a_sourced_entry(tmp_path, monkeypatch):
+    """The manual-panel form writes a normalised, provenanced retail observation."""
+    from fastapi.testclient import TestClient
+
+    from vervana.db.base import Base
+    from vervana.db.engine import make_engine, session_scope
+
+    url = f"sqlite:///{tmp_path / 'panel.sqlite3'}"
+    monkeypatch.setenv("VERVANA_DATABASE_URL", url)
+    Base.metadata.create_all(make_engine(url))
+    with session_scope() as s:
+        seed_registry(s, SEED_DIR)
+
+    from vervana.web.app import app
+
+    client = TestClient(app)
+    r = client.post(
+        "/panel",
+        data={
+            "commodity": "Potato",
+            "platform": "Blinkit",
+            "pack_kg": "1",
+            "selling_price_rupees": "39",
+            "observed_date": "2026-09-20",
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    assert "ok=" in r.headers["location"]
+    with session_scope() as s:
+        obs = s.scalars(
+            select(PriceObservation).where(
+                PriceObservation.source_class == SourceClass.retail_offer
+            )
+        ).all()
+    # ₹39 for a 1 kg pack -> ₹39/kg (3900 paise), traceable to a non-empty source.
+    assert any(o.canonical_price_paise_per_kg == 3900 for o in obs)
+    assert all(o.source_url for o in obs)
+
+    # A non-numeric price reaches the handler, is rejected by the importer, and the
+    # redirect carries an error — nothing new is saved. (A truly blank field is stopped
+    # earlier by the form's `required` attribute / framework validation.)
+    bad = client.post(
+        "/panel",
+        data={
+            "commodity": "Potato",
+            "platform": "Blinkit",
+            "pack_kg": "1",
+            "selling_price_rupees": "not-a-number",
+        },
+        follow_redirects=False,
+    )
+    assert bad.status_code == 303
+    assert "err=" in bad.headers["location"]
+    with session_scope() as s:
+        assert s.scalar(
+            select(func.count())
+            .select_from(PriceObservation)
+            .where(PriceObservation.source_class == SourceClass.retail_offer)
+        ) == len(obs)

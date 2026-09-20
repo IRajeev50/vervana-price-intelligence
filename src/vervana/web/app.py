@@ -16,7 +16,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from types import SimpleNamespace as _NS
 
-from fastapi import FastAPI, Form, HTTPException, Request
+from fastapi import Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -80,13 +80,12 @@ async def site_basic_auth(request: Request, call_next):
     JSON API (/api/*) stays API-key gated and is not covered by this gate.
     """
     settings = get_settings()
-    if not (settings.site_user and settings.site_password) or request.url.path.startswith(
-        "/api/"
-    ):
+    if not (settings.site_user and settings.site_password) or request.url.path.startswith("/api/"):
         return await call_next(request)
-    expected = "Basic " + base64.b64encode(
-        f"{settings.site_user}:{settings.site_password}".encode()
-    ).decode()
+    expected = (
+        "Basic "
+        + base64.b64encode(f"{settings.site_user}:{settings.site_password}".encode()).decode()
+    )
     if not hmac.compare_digest(request.headers.get("authorization", ""), expected):
         return PlainTextResponse(
             "Authentication required",
@@ -94,6 +93,28 @@ async def site_basic_auth(request: Request, call_next):
             headers={"WWW-Authenticate": 'Basic realm="vervana"'},
         )
     return await call_next(request)
+
+
+def require_panel_auth(request: Request) -> None:
+    """Gate the manual price panel (/panel) behind HTTP basic auth on a shared deploy.
+
+    Uses the panel_* credentials, falling back to the site_* credentials. When
+    neither is configured the panel stays open, so local dev is frictionless; a
+    public read-only deployment can protect just the write surface by setting the
+    panel credentials without gating the whole site.
+    """
+    settings = get_settings()
+    user = settings.panel_user or settings.site_user
+    password = settings.panel_password or settings.site_password
+    if not (user and password):
+        return
+    expected = "Basic " + base64.b64encode(f"{user}:{password}".encode()).decode()
+    if not hmac.compare_digest(request.headers.get("authorization", ""), expected):
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required to add panel prices",
+            headers={"WWW-Authenticate": 'Basic realm="vervana-panel"'},
+        )
 
 
 def _paise_to_rupee(paise: int | None) -> str:
@@ -330,9 +351,17 @@ def benchmark_page(request: Request, commodity: str = "Onion"):
 
 @app.get("/digest", response_class=HTMLResponse)
 def digest_page(request: Request):
+    from vervana.digest import DEFAULT_BASKET, commodity_options
+
+    # The buyer picks the basket via the dropdown; empty selection falls back to
+    # the default basket rather than an empty board.
+    picked = [c.strip() for c in request.query_params.getlist("item") if c.strip()]
     with session_scope() as s:
-        text = build_digest(s)
-        lines = build_lines(s)
+        options = commodity_options(s)
+        valid = set(options["qcomm"]) | set(options["wholesale_only"])
+        selected = [c for c in picked if c in valid]
+        text = build_digest(s, selected or None)
+        lines = build_lines(s, selected or None)
     priced = sum(1 for line in lines if line.ref_kg is not None or line.retail_kg is not None)
     complete = sum(1 for line in lines if line.ref_kg is not None and line.retail_kg is not None)
     return TEMPLATES.TemplateResponse(
@@ -345,8 +374,124 @@ def digest_page(request: Request):
             digest_date=to_ist(now_utc()).strftime("%d %b %Y"),
             priced=priced,
             complete=complete,
+            options=options,
+            selected=selected or list(DEFAULT_BASKET),
         ),
     )
+
+
+# Quick-commerce manual panel: a human checks the apps and types today's prices.
+# This is the sanctioned path (no scraping, see connectors/quickcommerce.py); each
+# entry flows through the same importer and inherits full provenance.
+QCOMM_PLATFORMS = ["Blinkit", "Zepto", "Swiggy Instamart", "BigBasket", "JioMart", "Amazon Fresh"]
+QCOMM_PACKS = [
+    ("0.25", "250 g"),
+    ("0.5", "500 g"),
+    ("1", "1 kg"),
+    ("2", "2 kg"),
+    ("5", "5 kg"),
+]
+
+
+def _recent_panel_entries(session, limit: int = 25) -> list[dict]:
+    from vervana.models.retail import RetailOfferDetail
+
+    rows = session.execute(
+        select(PriceObservation, RetailOfferDetail, Commodity.canonical_name)
+        .join(RetailOfferDetail, RetailOfferDetail.observation_id == PriceObservation.id)
+        .join(Commodity, Commodity.id == PriceObservation.commodity_id)
+        .where(PriceObservation.source_class == SourceClass.retail_offer)
+        .order_by(PriceObservation.observed_at.desc(), PriceObservation.id.desc())
+        .limit(limit)
+    ).all()
+    out = []
+    for obs, detail, cname in rows:
+        out.append(
+            {
+                "id": obs.id,
+                "date": to_ist(obs.observed_at).strftime("%d %b"),
+                "commodity": cname,
+                "platform": detail.platform,
+                "pack": detail.pack_size_raw,
+                "price": f"₹{detail.selling_price_paise / 100:,.0f}",
+                "per_kg": f"₹{obs.canonical_price_paise_per_kg / 100:,.0f}/kg",
+            }
+        )
+    return out
+
+
+@app.get("/panel", response_class=HTMLResponse, dependencies=[Depends(require_panel_auth)])
+def qcomm_panel(request: Request, ok: str = "", err: str = ""):
+    from vervana.digest import commodity_options
+
+    with session_scope() as s:
+        options = commodity_options(s)
+        all_commodities = [
+            c
+            for (c,) in s.execute(
+                select(Commodity.canonical_name).order_by(Commodity.canonical_name)
+            )
+        ]
+        recent = _recent_panel_entries(s)
+    return TEMPLATES.TemplateResponse(
+        request,
+        "panel.html",
+        _ctx(
+            request,
+            platforms=QCOMM_PLATFORMS,
+            packs=QCOMM_PACKS,
+            panelled=options["qcomm"],
+            all_commodities=all_commodities,
+            recent=recent,
+            today=to_ist(now_utc()).strftime("%Y-%m-%d"),
+            ok=ok,
+            err=err,
+        ),
+    )
+
+
+@app.post("/panel", dependencies=[Depends(require_panel_auth)])
+def qcomm_panel_submit(
+    request: Request,
+    commodity: str = Form(...),
+    platform: str = Form(...),
+    pack_kg: str = Form(...),
+    pack_label: str = Form(""),
+    selling_price_rupees: str = Form(...),
+    mrp_rupees: str = Form(""),
+    product_url: str = Form(""),
+    observed_date: str = Form(""),
+):
+    from urllib.parse import quote
+
+    from vervana.connectors.quickcommerce import QuickCommerceConnector
+
+    date = observed_date.strip() or to_ist(now_utc()).strftime("%Y-%m-%d")
+    label = pack_label.strip() or dict(QCOMM_PACKS).get(pack_kg, f"{pack_kg} kg")
+    # Provenance: the actual product link is best; else a stable manual-panel URI so
+    # the row is still traceable to who/where it was recorded (never left blank).
+    src = product_url.strip() or (
+        f"manual-panel://{platform.lower().replace(' ', '-')}/"
+        f"{commodity.lower().replace(' ', '-')}/{label.replace(' ', '')}/{date}"
+    )
+    record = {
+        "platform": platform,
+        "sku_title": f"{commodity} {label}".strip(),
+        "commodity": commodity,
+        "pack_size_raw": label,
+        "pack_kg": pack_kg,
+        "mrp_rupees": mrp_rupees,
+        "selling_price_rupees": selling_price_rupees,
+        "fees_rupees": "",
+        "observed_date": date,
+        "source_url": src,
+    }
+    with session_scope() as s:
+        res = QuickCommerceConnector().ingest(s, [record], mode="panel")
+    if res.accepted:
+        return RedirectResponse(f"/panel?ok={quote(f'{commodity} · {platform}')}", status_code=303)
+    reason = res.rejections[0][0] if res.rejections else "could not record entry"
+    return RedirectResponse(f"/panel?err={quote(reason)}", status_code=303)
 
 
 @app.get("/forecast", response_class=HTMLResponse)
@@ -814,8 +959,11 @@ def _read_probe() -> list[dict]:
             for r in csv.DictReader(fh)
         ]
 
+
 @app.get("/districts", response_class=HTMLResponse)
-def district_directory_page(request: Request, state: str = "", q: str = "", sort: str = "production"):
+def district_directory_page(
+    request: Request, state: str = "", q: str = "", sort: str = "production"
+):
     """District-wise insights: national directory, key figures only per district.
 
     Tap a district to open its full detail card. Read-only; figures come from

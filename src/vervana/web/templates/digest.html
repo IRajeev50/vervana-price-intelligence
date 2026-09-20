@@ -17,6 +17,27 @@
   <div class="digest-summary__note"><span class="legend-dot legend-dot--observed"></span>Wholesale reference <span class="legend-dot legend-dot--retail"></span>Retail offer <span class="legend-dot legend-dot--quote"></span>Indicative quote</div>
 </div>
 
+<form class="basket-picker" method="get" aria-label="Choose commodities">
+  <div class="basket-picker__field">
+    <label for="basket">Build your basket <span class="muted small">— ⌘/Ctrl-click to pick several</span></label>
+    <select class="select" id="basket" name="item" multiple size="8">
+      <optgroup label="Wholesale + quick-commerce (full spread) — {{ options.qcomm|length }}">
+        {% for c in options.qcomm %}<option value="{{ c }}" {{ 'selected' if c in selected }}>{{ c }} · q-comm</option>{% endfor %}
+      </optgroup>
+      <optgroup label="Wholesale only (Agmarknet reference) — {{ options.wholesale_only|length }}">
+        {% for c in options.wholesale_only %}<option value="{{ c }}" {{ 'selected' if c in selected }}>{{ c }}</option>{% endfor %}
+      </optgroup>
+    </select>
+  </div>
+  <div class="basket-picker__actions">
+    <button class="btn" type="submit">Update board</button>
+    <a class="btn btn--ghost" href="/digest">Reset to default</a>
+  </div>
+  <p class="muted small basket-picker__hint">Quick-commerce retail is panelled for <strong>{{ options.qcomm|length }}</strong>
+    commodities; the other <strong>{{ options.wholesale_only|length }}</strong> show the real Agmarknet
+    wholesale price with no retail spread (never a fabricated one). See <em>Getting real-time prices</em> below.</p>
+</form>
+
 <section class="panel panel--flush digest-board" aria-labelledby="market-board-h">
   <div class="panel__head digest-board__head">
     <div><h2 id="market-board-h">Market spread board</h2><p class="muted small">Retail premium against the preferred wholesale reference. Positive spread can flag procurement headroom.</p></div>
@@ -51,6 +72,30 @@
       </tbody>
     </table>
   </div>
+</section>
+
+<section class="panel" id="realtime" aria-labelledby="realtime-h">
+  <div class="eyebrow">Data freshness</div>
+  <h2 id="realtime-h">Getting real-time prices</h2>
+  <div class="freshness-grid">
+    <div class="freshness-item freshness-item--live">
+      <div class="freshness-item__tag">Wholesale · near-live</div>
+      <p>Agmarknet wholesale prices are <strong>real and refreshed daily</strong> by the ingest pipeline
+        (data.gov.in, GODL-India) — {{ options.qcomm|length + options.wholesale_only|length }} commodities
+        carry a national reference. This is as live as the official feed gets.</p>
+    </div>
+    <div class="freshness-item freshness-item--panel">
+      <div class="freshness-item__tag">Quick-commerce · panelled</div>
+      <p>Blinkit / Zepto / Instamart have <strong>no open, licensed price API</strong>, and scraping their
+        apps is brittle and against their terms — so retail rows are <strong>manual panel observations</strong>
+        ({{ options.qcomm|length }} commodities), never scraped-and-relabelled. Refresh them by importing a
+        panel file: <code>uv run vervana ingest qcomm-csv &lt;file&gt;</code>, or type them one at a time on the
+        <a href="/panel">price panel →</a>.</p>
+    </div>
+  </div>
+  <p class="muted small">To make the board truly live for more commodities, the honest routes are a
+    sanctioned quick-commerce data partnership or a standing human price panel — either flows in through the
+    same <code>qcomm-csv</code> importer and inherits full provenance. We won't fake a live feed.</p>
 </section>
 
 <div class="method-grid">

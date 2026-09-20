@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Quick-commerce panel{% endblock %}
+{% block body %}
+<header class="page-head">
+  <div class="page-head__kicker">Operations · manual panel</div>
+  <h1>Quick-commerce price panel</h1>
+  <p class="page-head__sub">Check the apps, type what you see. Each entry becomes a sourced retail
+    observation and appears on the <a href="/digest">HoReCa digest</a> straight away — the honest,
+    no-scraping way to keep retail prices current.</p>
+</header>
+
+{% if ok %}<div class="callout callout--ok"><span class="callout__ico" aria-hidden="true">✓</span>
+  <div class="callout__body"><strong>Recorded.</strong> {{ ok }} is now on the board.</div></div>{% endif %}
+{% if err %}<div class="callout callout--danger"><span class="callout__ico" aria-hidden="true">!</span>
+  <div class="callout__body"><strong>Couldn't record that.</strong> {{ err }}. Fix the field and try again — nothing was saved.</div></div>{% endif %}
+
+<section class="panel" aria-labelledby="entry-h">
+  <h2 id="entry-h">Add today's price</h2>
+  <form class="entry-form" method="post" action="/panel">
+    <div class="entry-form__row">
+      <div class="field">
+        <label for="commodity">Commodity</label>
+        <select class="select" id="commodity" name="commodity" required>
+          <option value="" disabled {{ 'selected' if not panelled }}>Choose…</option>
+          {% if panelled %}<optgroup label="Already on the board">
+            {% for c in panelled %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </optgroup>{% endif %}
+          <optgroup label="All commodities">
+            {% for c in all_commodities %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </optgroup>
+        </select>
+      </div>
+      <div class="field">
+        <label for="platform">Platform</label>
+        <select class="select" id="platform" name="platform" required>
+          {% for p in platforms %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="pack_kg">Pack size</label>
+        <select class="select" id="pack_kg" name="pack_kg" required>
+          {% for value, label in packs %}<option value="{{ value }}" {{ 'selected' if label == '1 kg' }}>{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="entry-form__row">
+      <div class="field">
+        <label for="selling">Selling price (₹)</label>
+        <input class="input" type="number" step="0.01" min="0" id="selling" name="selling_price_rupees" placeholder="e.g. 39" required>
+      </div>
+      <div class="field">
+        <label for="mrp">MRP (₹) <span class="muted small">optional</span></label>
+        <input class="input" type="number" step="0.01" min="0" id="mrp" name="mrp_rupees" placeholder="e.g. 45">
+      </div>
+      <div class="field">
+        <label for="date">Date seen</label>
+        <input class="input" type="date" id="date" name="observed_date" value="{{ today }}">
+      </div>
+    </div>
+    <div class="entry-form__row">
+      <div class="field field--wide">
+        <label for="url">Product link <span class="muted small">optional — best provenance; a manual-panel tag is generated if blank</span></label>
+        <input class="input" type="url" id="url" name="product_url" placeholder="https://blinkit.com/prn/…">
+      </div>
+      <div class="entry-form__actions"><button class="btn" type="submit">Record price</button></div>
+    </div>
+  </form>
+  <p class="muted small">Price is normalised to ₹/kg from the pack size (₹39 for a 1 kg pack → ₹39/kg).
+    Retail rows are never averaged with wholesale — the digest shows them side by side as a spread.</p>
+</section>
+
+<section class="panel" aria-labelledby="recent-h">
+  <div class="panel__head"><h2 id="recent-h">Recent entries</h2>
+    <a class="btn btn--ghost" href="/digest">View the board →</a></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Date</th><th>Commodity</th><th>Platform</th><th>Pack</th><th class="num">Price</th><th class="num">Per kg</th><th>Evidence</th></tr></thead>
+      <tbody>
+      {% for r in recent %}
+        <tr>
+          <td class="cell-muted">{{ r.date }}</td>
+          <td class="cell-strong">{{ r.commodity }}</td>
+          <td>{{ r.platform }}</td>
+          <td>{{ r.pack }}</td>
+          <td class="num">{{ r.price }}</td>
+          <td class="num cell-strong">{{ r.per_kg }}</td>
+          <td><a href="/evidence/{{ r.id }}">ev#{{ r.id }}</a></td>
+        </tr>
+      {% else %}
+        <tr><td colspan="7"><div class="empty"><span class="empty__ico" aria-hidden="true">◌</span>
+          <div class="empty__title">No panel entries yet</div>
+          <div class="empty__hint">Add the first one above — it lands on the digest immediately.</div></div></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+<p class="muted small">Not trading advice. Retail rows are manual quick-commerce observations recorded by a human panel; every row links to its evidence.</p>
+{% endblock %}
