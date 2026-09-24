@@ -1072,5 +1072,39 @@ def aspirational_summary() -> None:
         typer.echo(f"  {row['state']:<24} {row['count']}")
 
 
+sourcing_app = typer.Typer(
+    help="Sourcing directory: import official supplier organisations.",
+    no_args_is_help=True,
+)
+app.add_typer(sourcing_app, name="sourcing")
+
+
+@sourcing_app.command("import-cdb-coconut")
+def sourcing_import_cdb_coconut() -> None:
+    """Import the official Coconut Development Board producer-company directory.
+
+    Fetches the CDB Coconut Producer Companies contact PDF, parses one record per
+    company (name, state, a primary contact), and upserts them as Coconut
+    suppliers - an official, consent-clean directory, never scraped trader data.
+    """
+    from vervana.db.engine import session_scope
+    from vervana.repository.sourcing import import_suppliers
+    from vervana.supply.cdb import build_supplier_records
+
+    try:
+        records, url = build_supplier_records()
+    except Exception as exc:  # network / parse failure: ingest nothing
+        typer.echo(f"cdb-coconut import failed: {exc}", err=True)
+        raise typer.Exit(code=1) from None
+    with_phone = sum(1 for r in records if r.get("phone"))
+    with session_scope() as session:
+        res = import_suppliers(session, records)
+    typer.echo(
+        f"CDB coconut suppliers: parsed={len(records)} "
+        f"(with phone={with_phone}) added={res['added']} updated={res['updated']}"
+    )
+    typer.echo(f"source: {url}")
+
+
 if __name__ == "__main__":  # pragma: no cover
     app()

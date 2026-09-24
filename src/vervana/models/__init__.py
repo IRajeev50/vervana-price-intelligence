@@ -12,7 +12,7 @@ from vervana.models.observations import PriceObservation
 from vervana.models.observer import Observer
 from vervana.models.retail import RetailOfferDetail
 from vervana.models.review import AliasReview
-from vervana.models.sourcing import Buyer, SupplierContact
+from vervana.models.sourcing import Buyer, Supplier, SupplierContact
 from vervana.models.units import UnitConvention
 
 __all__ = [
@@ -33,6 +33,7 @@ __all__ = [
     "PriceObservation",
     "ProspectiveForecast",
     "RetailOfferDetail",
+    "Supplier",
     "SupplierContact",
     "UnitConvention",
     "Variety",

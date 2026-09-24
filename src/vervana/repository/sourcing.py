@@ -25,7 +25,7 @@ from vervana.db.base import SourceClass
 from vervana.geo import canonical_state, state_distance_km
 from vervana.models.entities import Commodity, Market
 from vervana.models.observations import PriceObservation
-from vervana.models.sourcing import Buyer, SupplierContact
+from vervana.models.sourcing import Buyer, Supplier, SupplierContact
 from vervana.time import now_utc
 
 
@@ -187,6 +187,81 @@ def add_buyer(session: Session, *, name: str, **kw) -> int:
     session.add(row)
     session.flush()
     return row.id
+
+
+def import_suppliers(session: Session, records: list[dict]) -> dict:
+    """Upsert supplier organisations (idempotent on commodity+name+state)."""
+    existing = {(s.commodity, s.name, s.state): s for s in session.scalars(select(Supplier))}
+    added = updated = 0
+    for r in records:
+        if not r.get("name") or not r.get("source_url"):
+            continue  # provenance + identity required
+        key = (r["commodity"], r["name"], r.get("state"))
+        found = existing.get(key)
+        if found is None:
+            session.add(
+                Supplier(
+                    commodity=r["commodity"],
+                    name=r["name"],
+                    org_type=r.get("org_type", ""),
+                    state=r.get("state"),
+                    district=r.get("district"),
+                    address=r.get("address"),
+                    contact_name=r.get("contact_name"),
+                    phone=r.get("phone"),
+                    email=r.get("email"),
+                    source=r["source"],
+                    source_url=r["source_url"],
+                    added_at=now_utc(),
+                )
+            )
+            added += 1
+        else:
+            # Refresh contact fields if the directory changed.
+            for f in ("phone", "email", "contact_name", "address"):
+                if r.get(f) and getattr(found, f) != r[f]:
+                    setattr(found, f, r[f])
+                    updated += 1
+    session.flush()
+    return {"added": added, "updated": updated, "total": len(records)}
+
+
+def list_suppliers(session: Session, commodity: str, state: str = "") -> list[dict]:
+    stmt = (
+        select(Supplier)
+        .where(Supplier.commodity == commodity)
+        .order_by(Supplier.state, Supplier.name)
+    )
+    if state:
+        stmt = stmt.where(Supplier.state == state)
+    out = []
+    for s in session.scalars(stmt):
+        out.append(
+            {
+                "name": s.name,
+                "org_type": s.org_type,
+                "state": s.state,
+                "address": s.address,
+                "contact_name": s.contact_name,
+                "phone": s.phone,
+                "email": s.email,
+                "source": s.source,
+                "source_url": s.source_url,
+            }
+        )
+    return out
+
+
+def supplier_states(session: Session, commodity: str) -> list[str]:
+    return [
+        s
+        for (s,) in session.execute(
+            select(Supplier.state)
+            .where(Supplier.commodity == commodity, Supplier.state.is_not(None))
+            .distinct()
+            .order_by(Supplier.state)
+        )
+    ]
 
 
 def list_buyers(session: Session) -> list[dict]:

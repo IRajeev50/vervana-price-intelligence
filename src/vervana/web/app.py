@@ -503,7 +503,11 @@ def qcomm_panel_submit(
 def sourcing_page(request: Request, commodity: str = "Onion", buyer_state: str = ""):
     """Rank sourcing mandis by estimated landed cost (wholesale + freight)."""
     from vervana.geo import states as geo_states
-    from vervana.repository.sourcing import landed_cost_ranking, sourced_commodities
+    from vervana.repository.sourcing import (
+        landed_cost_ranking,
+        list_suppliers,
+        sourced_commodities,
+    )
 
     settings = get_settings()
     with session_scope() as s:
@@ -511,6 +515,7 @@ def sourcing_page(request: Request, commodity: str = "Onion", buyer_state: str =
         result = landed_cost_ranking(
             s, commodity, buyer_state or None, settings.freight_rate_per_tonne_km
         )
+        suppliers = list_suppliers(s, commodity)
     return TEMPLATES.TemplateResponse(
         request,
         "sourcing.html",
@@ -521,6 +526,7 @@ def sourcing_page(request: Request, commodity: str = "Onion", buyer_state: str =
             states=geo_states(),
             buyer_state=buyer_state,
             result=result,
+            suppliers=suppliers,
         ),
     )
 
