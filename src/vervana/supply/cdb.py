@@ -62,6 +62,14 @@ _PHONE = re.compile(r"\b([6-9]\d{9})\b")
 _EMAIL = re.compile(r"[\w.\-]+@[\w.\-]+\.\w+")
 
 
+_NAME_END = ("CPC", "CPCL", "COMPANY", "LTD")
+_ADDR_HINT = re.compile(r"\d{6}|\bD\.?\s?No\b|\bDoor\b|\bP\.?\s?O\b|\bPost\b|,", re.IGNORECASE)
+
+
+def _looks_like_address(line: str) -> bool:
+    return bool(_ADDR_HINT.search(line))
+
+
 @dataclass
 class CpcRecord:
     name: str
@@ -71,6 +79,7 @@ class CpcRecord:
     phone: str | None = None
     email: str | None = None
     _contacts: list[dict] = field(default_factory=list, repr=False)
+    _name_open: bool = True
 
 
 def parse_cdb_text(text: str) -> list[CpcRecord]:
@@ -95,7 +104,9 @@ def parse_cdb_text(text: str) -> list[CpcRecord]:
         if m and int(m.group(1)) == expected and not _PHONE.search(line):
             if cur is not None:
                 out.append(cur)
-            cur = CpcRecord(name=m.group(2).strip(), state=(state.title() if state else None))
+            nm = m.group(2).strip()
+            cur = CpcRecord(name=nm, state=(state.title() if state else None))
+            cur._name_open = not nm.upper().endswith(_NAME_END)
             expected += 1
             continue
         if cur is None:
@@ -103,6 +114,7 @@ def parse_cdb_text(text: str) -> list[CpcRecord]:
         ph = _PHONE.search(line)
         em = _EMAIL.search(line)
         if ph or em:
+            cur._name_open = False
             name = re.split(r"\d|@", line)[0].strip(" ,.-")
             cur._contacts.append(
                 {
@@ -111,10 +123,29 @@ def parse_cdb_text(text: str) -> list[CpcRecord]:
                     "email": em.group(0) if em else None,
                 }
             )
-        elif not cur._contacts and up != "CPC":
-            cur.address = (cur.address + " " + line).strip()
-        elif up == "CPC" and not cur.name.upper().endswith("CPC"):
-            cur.name += " CPC"
+            continue
+        # Name may wrap onto the next line(s), and the address can begin on the same
+        # physical line as the name's tail. "CPC" ends the name; then the remainder
+        # (and later lines) are the address.
+        if cur._name_open and not cur._contacts:
+            if "CPC" in up:
+                end = up.find("CPC") + 3
+                cur.name = f"{cur.name} {line[:end].strip()}".strip()
+                rest = line[end:].strip(" ,.-")
+                if rest:
+                    cur.address = f"{cur.address} {rest}".strip()
+                cur._name_open = False
+                continue
+            if (
+                not _looks_like_address(line)
+                and len(line.split()) <= 3
+                and not re.search(r"\d", line)
+            ):
+                cur.name = f"{cur.name} {line}".strip()  # short fragment of the name
+                continue
+            cur._name_open = False  # anything else starts the address
+        if not cur._contacts:
+            cur.address = f"{cur.address} {line}".strip()
     if cur is not None:
         out.append(cur)
 

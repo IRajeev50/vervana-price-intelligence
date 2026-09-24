@@ -51,6 +51,24 @@ def test_parse_serials_restart_per_state_without_misfiling():
     assert by["Tejaswini CPC"].email == "chairman@tejaswinicfpc.com"
 
 
+def test_wrapped_cpc_name_and_inline_address():
+    # A CPC name that wraps onto the next line, with the address starting on the
+    # same physical line as the name's tail (a real CDB layout quirk).
+    text = (
+        "KARNATAKA\n"
+        "1 Akshaya\n"
+        "Vrutha CPC Near Overhead water tank, Main Road, Hosadurga-577527\n"
+        "D C Anil Kumar Chairman 9482241317  anil.dc1976@gmail.com\n"
+    )
+    cpcs = parse_cdb_text(text)
+    assert len(cpcs) == 1
+    c = cpcs[0]
+    assert c.name == "Akshaya Vrutha CPC"  # name tail folded back into the name
+    assert c.address.startswith("Near Overhead water tank")  # address is not the name
+    assert "CPC" not in c.address
+    assert c.phone == "9482241317"
+
+
 def test_build_records_and_import_is_idempotent(monkeypatch, tmp_path):
     import vervana.supply.cdb as cdb
 

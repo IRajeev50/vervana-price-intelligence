@@ -128,11 +128,12 @@
   </div>
   <div class="table-wrap">
     <table class="data">
-      <thead><tr><th>Producer company</th><th>State</th><th>Contact</th><th>Phone</th><th>Email</th></tr></thead>
+      <thead><tr><th>Producer company</th><th>Address</th><th>State</th><th>Contact</th><th>Phone</th><th>Email</th></tr></thead>
       <tbody>
       {% for s in suppliers %}
         <tr>
           <td class="cell-strong">{{ s.name }}<br><span class="muted small">{{ s.org_type }}</span></td>
+          <td class="cell-muted small src-addr">{{ s.address or '—' }}</td>
           <td>{{ s.state or '—' }}</td>
           <td class="cell-muted">{{ s.contact_name or '—' }}</td>
           <td class="mono">{% if s.phone %}<a href="tel:{{ s.phone }}">{{ s.phone }}</a>{% else %}—{% endif %}</td>
