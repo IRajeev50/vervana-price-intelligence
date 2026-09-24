@@ -10,6 +10,10 @@
       <span class="nav-ico" aria-hidden="true">⇅</span>Benchmark</a>
     <a class="nav-link" href="/digest" {{ 'aria-current="page"' if path.startswith('/digest') }}>
       <span class="nav-ico" aria-hidden="true">☰</span>HoReCa digest</a>
+    <a class="nav-link" href="/sourcing" {{ 'aria-current="page"' if path == '/sourcing' or path.startswith('/sourcing/contact') }}>
+      <span class="nav-ico" aria-hidden="true">⇄</span>Sourcing</a>
+    <a class="nav-link" href="/sourcing/buyers" {{ 'aria-current="page"' if path.startswith('/sourcing/buyers') }}>
+      <span class="nav-ico" aria-hidden="true">◱</span>Buyers</a>
   </div>
   <div class="nav-group">
     <div class="nav-group__label">Research</div>

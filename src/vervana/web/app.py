@@ -496,6 +496,135 @@ def qcomm_panel_submit(
     return RedirectResponse(f"/panel?err={quote(reason)}", status_code=303)
 
 
+# --- Sourcing: landed-cost optimiser + mandi-based supplier / buyer directory ---
+
+
+@app.get("/sourcing", response_class=HTMLResponse)
+def sourcing_page(request: Request, commodity: str = "Onion", buyer_state: str = ""):
+    """Rank sourcing mandis by estimated landed cost (wholesale + freight)."""
+    from vervana.geo import states as geo_states
+    from vervana.repository.sourcing import landed_cost_ranking, sourced_commodities
+
+    settings = get_settings()
+    with session_scope() as s:
+        commodities = sourced_commodities(s)
+        result = landed_cost_ranking(
+            s, commodity, buyer_state or None, settings.freight_rate_per_tonne_km
+        )
+    return TEMPLATES.TemplateResponse(
+        request,
+        "sourcing.html",
+        _ctx(
+            request,
+            commodities=commodities,
+            commodity=commodity,
+            states=geo_states(),
+            buyer_state=buyer_state,
+            result=result,
+        ),
+    )
+
+
+@app.get("/sourcing/buyers", response_class=HTMLResponse)
+def sourcing_buyers_page(request: Request, ok: str = "", err: str = ""):
+    from vervana.repository.sourcing import list_buyers, sourced_commodities
+
+    with session_scope() as s:
+        buyers = list_buyers(s)
+        commodities = sourced_commodities(s)
+    return TEMPLATES.TemplateResponse(
+        request,
+        "buyers.html",
+        _ctx(request, buyers=buyers, commodities=commodities, states=None, ok=ok, err=err),
+    )
+
+
+@app.post("/sourcing/buyers", dependencies=[Depends(require_panel_auth)])
+def sourcing_buyers_add(
+    request: Request,
+    name: str = Form(...),
+    kind: str = Form(""),
+    city: str = Form(""),
+    state: str = Form(""),
+    commodities: str = Form(""),
+    phone: str = Form(""),
+    email: str = Form(""),
+    note: str = Form(""),
+):
+    from urllib.parse import quote
+
+    from vervana.repository.sourcing import add_buyer
+
+    if not name.strip():
+        return RedirectResponse("/sourcing/buyers?err=name+required", status_code=303)
+    with session_scope() as s:
+        add_buyer(
+            s,
+            name=name.strip(),
+            kind=kind.strip(),
+            city=city.strip(),
+            state=state.strip(),
+            commodities=commodities.strip(),
+            phone=phone.strip(),
+            email=email.strip(),
+            note=note.strip(),
+            source="added via sourcing directory",
+        )
+    return RedirectResponse(f"/sourcing/buyers?ok={quote(name.strip())}", status_code=303)
+
+
+@app.get(
+    "/sourcing/contact", response_class=HTMLResponse, dependencies=[Depends(require_panel_auth)]
+)
+def sourcing_contact_form(request: Request, market_id: int, market: str = "", ok: str = ""):
+    from vervana.repository.sourcing import supplier_contacts
+
+    with session_scope() as s:
+        existing = [
+            {"contact_name": c.contact_name, "role": c.role, "phone": c.phone, "source": c.source}
+            for c in supplier_contacts(s, market_id)
+        ]
+    return TEMPLATES.TemplateResponse(
+        request,
+        "supplier_contact.html",
+        _ctx(request, market_id=market_id, market=market, existing=existing, ok=ok),
+    )
+
+
+@app.post("/sourcing/contact", dependencies=[Depends(require_panel_auth)])
+def sourcing_contact_add(
+    request: Request,
+    market_id: int = Form(...),
+    market: str = Form(""),
+    contact_name: str = Form(...),
+    role: str = Form(""),
+    phone: str = Form(""),
+    email: str = Form(""),
+    note: str = Form(""),
+    source: str = Form(""),
+):
+    from urllib.parse import quote
+
+    from vervana.repository.sourcing import add_supplier_contact
+
+    if not contact_name.strip():
+        url = f"/sourcing/contact?market_id={market_id}&market={quote(market)}"
+        return RedirectResponse(url, status_code=303)
+    with session_scope() as s:
+        add_supplier_contact(
+            s,
+            market_id=market_id,
+            contact_name=contact_name.strip(),
+            role=role.strip(),
+            phone=phone.strip(),
+            email=email.strip(),
+            note=note.strip(),
+            source=source.strip() or "manual entry",
+        )
+    url = f"/sourcing/contact?market_id={market_id}&market={quote(market)}&ok={quote(contact_name.strip())}"
+    return RedirectResponse(url, status_code=303)
+
+
 @app.get("/forecast", response_class=HTMLResponse)
 def forecast_page(request: Request):
     from vervana.forecast import load_decision

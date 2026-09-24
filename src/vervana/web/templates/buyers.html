@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Buyers directory{% endblock %}
+{% block body %}
+<header class="page-head">
+  <div class="page-head__kicker">Sourcing · directory</div>
+  <h1>Buyers directory</h1>
+  <p class="page-head__sub">Real buyers — restaurants, hotels, distributors — and the commodities they source,
+    so a sourcing mandi can be matched to demand. Entered by hand; nothing here is invented.
+    See the <a href="/sourcing">landed-cost sourcing</a> board for where to buy cheapest.</p>
+</header>
+
+{% if ok %}<div class="callout callout--ok"><span class="callout__ico" aria-hidden="true">✓</span>
+  <div class="callout__body"><strong>Added.</strong> {{ ok }} is in the directory.</div></div>{% endif %}
+{% if err %}<div class="callout callout--danger"><span class="callout__ico" aria-hidden="true">!</span>
+  <div class="callout__body"><strong>Couldn't add that.</strong> {{ err }}.</div></div>{% endif %}
+
+<section class="panel" aria-labelledby="add-h">
+  <h2 id="add-h">Add a buyer</h2>
+  <form class="entry-form" method="post" action="/sourcing/buyers">
+    <div class="entry-form__row">
+      <div class="field"><label for="name">Name</label>
+        <input class="input" id="name" name="name" placeholder="e.g. Saravana Bhavan" required></div>
+      <div class="field"><label for="kind">Type</label>
+        <input class="input" id="kind" name="kind" placeholder="restaurant / hotel / distributor"></div>
+      <div class="field"><label for="state">State</label>
+        <input class="input" id="state" name="state" placeholder="e.g. Tamil Nadu"></div>
+      <div class="field"><label for="city">City</label>
+        <input class="input" id="city" name="city" placeholder="e.g. Chennai"></div>
+    </div>
+    <div class="entry-form__row">
+      <div class="field field--wide"><label for="commodities">Commodities sourced <span class="muted small">comma-separated</span></label>
+        <input class="input" id="commodities" name="commodities" placeholder="Onion, Tomato, Potato"></div>
+      <div class="field"><label for="phone">Phone <span class="muted small">optional</span></label>
+        <input class="input" id="phone" name="phone" placeholder="verified only"></div>
+      <div class="field"><label for="email">Email <span class="muted small">optional</span></label>
+        <input class="input" id="email" name="email" type="email"></div>
+    </div>
+    <div class="entry-form__row">
+      <div class="field field--wide"><label for="note">Note <span class="muted small">optional</span></label>
+        <input class="input" id="note" name="note" placeholder="volumes, delivery windows, etc."></div>
+      <div class="entry-form__actions"><button class="btn" type="submit">Add buyer</button></div>
+    </div>
+  </form>
+</section>
+
+<section class="panel" aria-labelledby="list-h">
+  <h2 id="list-h">Buyers ({{ buyers|length }})</h2>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Name</th><th>Type</th><th>Location</th><th>Commodities</th><th>Contact</th></tr></thead>
+      <tbody>
+      {% for b in buyers %}
+        <tr>
+          <td class="cell-strong">{{ b.name }}</td>
+          <td>{{ b.kind or '—' }}</td>
+          <td>{{ [b.city, b.state] | select | join(', ') or '—' }}</td>
+          <td>{% for c in b.commodities %}<span class="adp-have">{{ c }}</span> {% endfor %}{% if not b.commodities %}—{% endif %}</td>
+          <td class="cell-muted">{{ b.phone or b.email or '—' }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="5"><div class="empty"><span class="empty__ico" aria-hidden="true">◌</span>
+          <div class="empty__title">No buyers yet</div>
+          <div class="empty__hint">Add the first real buyer above.</div></div></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+<p class="muted small">Contacts are shown only where a real number/email was entered. No example buyers are seeded.</p>
+{% endblock %}
