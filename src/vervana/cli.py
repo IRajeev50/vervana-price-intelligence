@@ -996,7 +996,8 @@ def crops_import_apy(
     with session_scope() as session:
         res = import_apy_csv(session, path)
         typer.echo(
-            f"crop production rows added={res['added']} skipped={res['skipped']} rejected={res['rejected']}"
+            f"crop production rows added={res['added']} "
+            f"skipped={res['skipped']} rejected={res['rejected']}"
         )
         for reason, count in sorted(res["reasons"].items(), key=lambda kv: -kv[1]):
             typer.echo(f"  rejected [{count}]: {reason}")
