@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}Sourcing{% endblock %}
+{% block body %}
+<header class="page-head">
+  <div class="page-head__kicker">Sourcing · logistics</div>
+  <h1>Landed-cost sourcing</h1>
+  <p class="page-head__sub">The benchmark shows the cheapest mandi <em>at source</em>. This shows the cheapest
+    mandi <em>delivered to you</em> — real wholesale ₹/kg plus an estimated freight cost — so the nearest
+    isn't assumed cheapest and the far-but-cheap mandi isn't missed. Each mandi is a real sourcing point,
+    linked to its price evidence.</p>
+</header>
+
+<div class="callout callout--warn">
+  <span class="callout__ico" aria-hidden="true">⚠</span>
+  <div class="callout__body">
+    <strong>Landed cost is an estimate <span class="mono">(RISK[R15])</span>.</strong> Wholesale ₹/kg is real
+    (Agmarknet, executed_summary — never blended with retail). Freight is estimated as
+    <strong>distance × ₹{{ '%.0f'|format(result.rate) }}/tonne-km</strong> over a <strong>state-centroid
+    distance approximation</strong> — shown to compare mandis, not as a quoted freight rate. Within one state
+    distance reads as ~0 (refine with mandi-level coordinates later).
+  </div>
+</div>
+
+<form class="filters" method="get" aria-label="Sourcing filters">
+  <div class="field">
+    <label for="commodity">Commodity</label>
+    <select class="select" id="commodity" name="commodity" onchange="this.form.submit()">
+      {% for c in commodities %}<option value="{{ c }}" {{ 'selected' if c == commodity }}>{{ c }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label for="buyer_state">Deliver to (your state)</label>
+    <select class="select" id="buyer_state" name="buyer_state" onchange="this.form.submit()">
+      <option value="">— pick your state for landed cost —</option>
+      {% for s in states %}<option value="{{ s }}" {{ 'selected' if s == buyer_state }}>{{ s }}</option>{% endfor %}
+    </select>
+  </div>
+  <button class="btn" type="submit">Apply</button>
+</form>
+
+{% if result.n_markets == 0 %}
+<div class="empty"><span class="empty__ico" aria-hidden="true">◌</span>
+  <div class="empty__title">No wholesale prices for {{ commodity }}</div>
+  <div class="empty__hint">Pick another commodity, or ingest Agmarknet data first.</div></div>
+{% else %}
+
+{% if result.buyer_state_known %}
+<div class="stat-grid">
+  <div class="stat">
+    <div class="stat__value">₹{{ '%.2f'|format(result.cheapest_source.wholesale_paise / 100) }}</div>
+    <div class="stat__label">Cheapest at source</div>
+    <div class="stat__hint">{{ result.cheapest_source.market }} · {{ result.cheapest_source.state or '—' }}</div>
+  </div>
+  {% if result.cheapest_delivered %}
+  <div class="stat">
+    <div class="stat__value">₹{{ '%.2f'|format(result.cheapest_delivered.landed_rupees) }}</div>
+    <div class="stat__label">Cheapest delivered to {{ result.buyer_state }}</div>
+    <div class="stat__hint">{{ result.cheapest_delivered.market }} · {{ result.cheapest_delivered.state or '—' }}</div>
+  </div>
+  {% endif %}
+  <div class="stat">
+    <div class="stat__value">{{ result.n_markets }}</div>
+    <div class="stat__label">Sourcing mandis</div>
+    <div class="stat__hint">with a live wholesale price</div>
+  </div>
+</div>
+{% if result.reordered %}
+<div class="callout callout--info"><span class="callout__ico" aria-hidden="true">◎</span>
+  <div class="callout__body"><strong>Logistics changes the answer.</strong> The cheapest mandi at source
+    (<strong>{{ result.cheapest_source.market }}</strong>) is not the cheapest delivered
+    (<strong>{{ result.cheapest_delivered.market }}</strong>) once freight to {{ result.buyer_state }} is added.</div></div>
+{% endif %}
+{% else %}
+<div class="callout callout--info"><span class="callout__ico" aria-hidden="true">◎</span>
+  <div class="callout__body">Pick <strong>your state</strong> above to rank mandis by delivered cost. Until then this
+    is the source-price ranking (same as the benchmark).</div></div>
+{% endif %}
+
+<section class="panel panel--flush" aria-labelledby="src-h">
+  <div class="panel__head"><h2 id="src-h">{{ commodity }} — sourcing mandis {% if result.buyer_state_known %}delivered to {{ result.buyer_state }}{% endif %}</h2></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr>
+        <th class="num">#</th><th>Sourcing mandi</th><th>State</th>
+        <th class="num">Wholesale ₹/kg</th>
+        {% if result.buyer_state_known %}<th class="num">Distance</th><th class="num">Freight (est)</th><th class="num">Landed ₹/kg (est)</th>{% endif %}
+        <th>Reach</th><th>Evidence</th>
+      </tr></thead>
+      <tbody>
+      {% for r in result.rows %}
+        <tr {% if result.cheapest_delivered and r.market_id == result.cheapest_delivered.market_id %}class="cell-strong"{% endif %}>
+          <td class="num cell-muted">{{ loop.index }}</td>
+          <td class="cell-strong">{{ r.market }}</td>
+          <td>{{ r.state or '—' }}</td>
+          <td class="num">₹{{ '%.2f'|format(r.wholesale_rupees) }}</td>
+          {% if result.buyer_state_known %}
+            {% if r.distance_km is not none %}
+              <td class="num cell-muted">{{ '%.0f'|format(r.distance_km) }} km</td>
+              <td class="num cell-muted">+₹{{ '%.2f'|format(r.freight_rupees) }}</td>
+              <td class="num cell-strong">₹{{ '%.2f'|format(r.landed_rupees) }}</td>
+            {% else %}
+              <td class="num cell-muted" colspan="3">distance unknown (state not mapped)</td>
+            {% endif %}
+          {% endif %}
+          <td>
+            {% if r.contacts %}<span class="adp-have">✓ {{ r.contacts }} contact{{ 's' if r.contacts > 1 }}</span>{% else %}<span class="adp-have adp-have--no">mandi only</span>{% endif %}
+            <a class="src-add" href="/sourcing/contact?market_id={{ r.market_id }}&market={{ r.market | urlencode }}">+ add</a>
+          </td>
+          <td><a href="/evidence/{{ r.obs_id }}">ev#{{ r.obs_id }}</a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+<p class="muted small">Mandi suppliers above are real registry sourcing points, never fabricated traders. Add a real
+  contact for any mandi with “+ add”, or build a <a href="/sourcing/buyers">buyers directory</a>.
+  Not trading advice; freight is an estimate.</p>
+
+{% if suppliers %}
+<section class="panel panel--flush" aria-labelledby="dir-h">
+  <div class="panel__head">
+    <div><h2 id="dir-h">Direct producer-suppliers — {{ commodity }} ({{ suppliers|length }})</h2>
+    <p class="muted small">Producer organisations that supply {{ commodity }}, from an official directory — contact
+      them directly. {{ suppliers[0].source }}. <a href="{{ suppliers[0].source_url }}">source ↗</a></p></div>
+  </div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Producer company</th><th>Address</th><th>State</th><th>Contact</th><th>Phone</th><th>Email</th></tr></thead>
+      <tbody>
+      {% for s in suppliers %}
+        <tr>
+          <td class="cell-strong">{{ s.name }}<br><span class="muted small">{{ s.org_type }}</span></td>
+          <td class="cell-muted small src-addr">{{ s.address or '—' }}</td>
+          <td>{{ s.state or '—' }}</td>
+          <td class="cell-muted">{{ s.contact_name or '—' }}</td>
+          <td class="mono">{% if s.phone %}<a href="tel:{{ s.phone }}">{{ s.phone }}</a>{% else %}—{% endif %}</td>
+          <td class="mono">{% if s.email %}<a href="mailto:{{ s.email }}">{{ s.email }}</a>{% else %}—{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="muted small">These are official producer organisations (not scraped individual traders), imported with
+    their source. Every row links back to the directory it came from.</p>
+</section>
+{% endif %}
+{% endblock %}

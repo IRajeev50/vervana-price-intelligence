@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Add mandi contact{% endblock %}
+{% block body %}
+<header class="page-head">
+  <div class="page-head__kicker">Sourcing · supplier contact</div>
+  <h1>Contact for {{ market }}</h1>
+  <p class="page-head__sub">Attach a <strong>real</strong> contact to this sourcing mandi — a trader, an FPO, or the
+    mandi office — so a buyer can reach it. Enter only verified details; a provenance is required.
+    <a href="/sourcing">← back to sourcing</a></p>
+</header>
+
+{% if ok %}<div class="callout callout--ok"><span class="callout__ico" aria-hidden="true">✓</span>
+  <div class="callout__body"><strong>Saved.</strong> {{ ok }} added for {{ market }}.</div></div>{% endif %}
+
+<section class="panel" aria-labelledby="add-h">
+  <h2 id="add-h">Add a contact</h2>
+  <form class="entry-form" method="post" action="/sourcing/contact">
+    <input type="hidden" name="market_id" value="{{ market_id }}">
+    <input type="hidden" name="market" value="{{ market }}">
+    <div class="entry-form__row">
+      <div class="field"><label for="contact_name">Contact name</label>
+        <input class="input" id="contact_name" name="contact_name" required></div>
+      <div class="field"><label for="role">Role</label>
+        <input class="input" id="role" name="role" placeholder="trader / FPO / mandi office"></div>
+      <div class="field"><label for="phone">Phone</label>
+        <input class="input" id="phone" name="phone" placeholder="verified only"></div>
+      <div class="field"><label for="email">Email <span class="muted small">optional</span></label>
+        <input class="input" id="email" name="email" type="email"></div>
+    </div>
+    <div class="entry-form__row">
+      <div class="field field--wide"><label for="source">Source / how verified</label>
+        <input class="input" id="source" name="source" placeholder="e.g. mandi board, APMC listing, spoke directly" required></div>
+      <div class="field field--wide"><label for="note">Note <span class="muted small">optional</span></label>
+        <input class="input" id="note" name="note"></div>
+      <div class="entry-form__actions"><button class="btn" type="submit">Save contact</button></div>
+    </div>
+  </form>
+</section>
+
+{% if existing %}
+<section class="panel" aria-labelledby="ex-h">
+  <h2 id="ex-h">Existing contacts ({{ existing|length }})</h2>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Source</th></tr></thead>
+      <tbody>
+      {% for c in existing %}
+        <tr><td class="cell-strong">{{ c.contact_name }}</td><td>{{ c.role or '—' }}</td>
+          <td class="cell-muted">{{ c.phone or '—' }}</td><td class="cell-muted">{{ c.source }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

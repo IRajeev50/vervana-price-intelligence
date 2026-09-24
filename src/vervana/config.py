@@ -73,6 +73,15 @@ class Settings(BaseSettings):
     agmarknet_backoff_base_seconds: float = 2.0
     agmarknet_lookback_days: int = 7
 
+    # --- Sourcing / logistics (landed-cost optimiser) ---
+    # RISK[R15-FREIGHT-ASSUMPTION]: road-freight rate used to estimate delivered
+    # cost = wholesale + distance x rate. A single flat rupees-per-tonne-per-km is
+    # a coarse ASSUMPTION (real freight varies by lane, load, fuel, season) and the
+    # distance itself is a state-centroid approximation - so landed cost is shown
+    # as an ESTIMATE with the rate visible, never a quoted freight price. Tune here.
+    # Evidence: docs/RISK_REGISTER.md#r15-freight-assumption ; Verdict: PENDING
+    freight_rate_per_tonne_km: float = 4.0
+
     # --- Datastore ---
     # Defaults to a local SQLite file so nothing is required to import/run in dev
     # and tests. Production can set Turso URL + token; local development stays SQLite.
