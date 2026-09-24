@@ -679,6 +679,52 @@ def supply_ndvi(
             typer.echo(f"  rejected [{count}]: {reason}")
 
 
+@supply_app.command("rainfall-fetch")
+def supply_rainfall_fetch(
+    zone: str = typer.Option("", help="Limit to one zone id (default: all zones)."),
+) -> None:
+    """Fetch IMD's all-India district PDF and ingest watch-zone rainfall signals.
+
+    Downloads the Hydromet Division districtwise bulletin, parses each watch-zone
+    district's seasonal cumulative % departure, and ingests them as observed
+    rainfall_deficit_pct signals - the automated twin of `rainfall-import`. The
+    observation date comes from the PDF's own period line; districts the PDF does
+    not yield are reported, never invented.
+    """
+    from vervana.connectors.imd import ImdRainfallConnector
+    from vervana.db.engine import session_scope
+    from vervana.supply.imd_fetch import build_records
+    from vervana.supply.zones import load_zones
+
+    zones = load_zones()
+    if zone:
+        zones = [z for z in zones if z.zone == zone]
+        if not zones:
+            typer.echo(f"unknown zone '{zone}' - see data/config/supply_zones.csv", err=True)
+            raise typer.Exit(code=1)
+    try:
+        records, missing, as_of = build_records(zones, settings=get_settings())
+    except Exception as exc:  # network / parse failure: say so, ingest nothing
+        typer.echo(f"rainfall-fetch failed: {exc}", err=True)
+        raise typer.Exit(code=1) from None
+    typer.echo(
+        f"IMD bulletin as of: {as_of or 'unknown'} · parsed {len(records)} watch-zone districts"
+    )
+    if not records:
+        typer.echo("no watch-zone districts parsed from the PDF - nothing ingested", err=True)
+        if missing:
+            typer.echo(f"  missing: {', '.join(missing)}")
+        raise typer.Exit(code=1)
+    with session_scope() as session:
+        run, result = ImdRainfallConnector().ingest_with_run(session, records, mode="fetch")
+    typer.echo(
+        f"ingest_run#{run.id}: rows_in={result.rows_in} "
+        f"accepted={result.accepted} rejected={result.rejected}"
+    )
+    if missing:
+        typer.echo(f"  not found in PDF (unchanged, not invented): {', '.join(missing)}")
+
+
 @supply_app.command("rainfall-import")
 def supply_rainfall_import(path: Path) -> None:
     """Import IMD district rainfall (CSV) as observed rainfall_deficit_pct signals."""

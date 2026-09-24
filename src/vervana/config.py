@@ -91,6 +91,13 @@ class Settings(BaseSettings):
     # IMD district rainfall: optional machine-readable CSV endpoint. The public
     # bulletin is a PDF; without this, use `vervana supply rainfall-import`.
     imd_district_rainfall_url: str | None = None
+    # IMD Hydromet Division all-India districtwise rainfall PDF (daily + seasonal
+    # cumulative, every district in one file). `vervana supply rainfall-fetch`
+    # downloads and parses it for the watch-zone districts - a repeatable, sourced
+    # refresh with no manual CSV. Override only if IMD moves the file.
+    imd_all_india_rainfall_url: str = (
+        "https://mausam.imd.gov.in/Rainfall/DISTRICT_RAINFALL_DISTRIBUTION_COUNTRY_INDIA_cd.pdf"
+    )
     # Google Agricultural Understanding (ALU/AMED)-partner access pending.
     # Endpoint URLs are not public; set them from the partner documentation when
     # access is granted. Empty => the scaffold reports "access pending" and
