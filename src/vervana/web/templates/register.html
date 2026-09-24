@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}List your supply{% endblock %}
+{% block body %}
+<header class="page-head">
+  <div class="page-head__kicker">Sourcing · supplier registration</div>
+  <h1>List your supply</h1>
+  <p class="page-head__sub">Are you a producer, FPO or trader who can supply a commodity? Add yourself so buyers
+    can reach you directly. Entries are marked <strong>self-listed · unverified</strong> until confirmed —
+    honest about where the contact came from. Only register your own real details.</p>
+</header>
+
+{% if ok %}<div class="callout callout--ok"><span class="callout__ico" aria-hidden="true">✓</span>
+  <div class="callout__body"><strong>Listed.</strong> {{ ok }}. Buyers can now find you on the sourcing board.</div></div>{% endif %}
+{% if err %}<div class="callout callout--danger"><span class="callout__ico" aria-hidden="true">!</span>
+  <div class="callout__body"><strong>Couldn't list you.</strong> {{ err }}.</div></div>{% endif %}
+
+<section class="panel" aria-labelledby="reg-h">
+  <h2 id="reg-h">Your details</h2>
+  <form class="entry-form" method="post" action="/sourcing/register">
+    <div class="entry-form__row">
+      <div class="field field--wide"><label for="name">Name (person / FPO / company)</label>
+        <input class="input" id="name" name="name" placeholder="e.g. Sahyadri Farmers Producer Co." required></div>
+      <div class="field"><label for="org_type">Type</label>
+        <input class="input" id="org_type" name="org_type" placeholder="FPO / trader / farmer"></div>
+    </div>
+    <div class="entry-form__row">
+      <div class="field"><label for="state">State</label>
+        <select class="select" id="state" name="state">
+          <option value="">— select —</option>
+          {% for s in states %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+        </select></div>
+      <div class="field"><label for="district">District / town</label>
+        <input class="input" id="district" name="district" placeholder="e.g. Nashik"></div>
+      <div class="field"><label for="phone">Phone</label>
+        <input class="input" id="phone" name="phone" placeholder="your number"></div>
+      <div class="field"><label for="email">Email <span class="muted small">optional</span></label>
+        <input class="input" id="email" name="email" type="email"></div>
+    </div>
+    <div class="field">
+      <label>Commodities you supply <span class="muted small">— tick all that apply</span></label>
+      <div class="checkset__grid checkset__grid--scroll">
+        {% for c in commodities %}
+        <label class="checkopt"><input type="checkbox" name="commodity" value="{{ c }}"><span>{{ c }}</span></label>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="entry-form__row">
+      <div class="entry-form__actions"><button class="btn" type="submit">List my supply</button></div>
+    </div>
+  </form>
+  <p class="muted small">A phone or email is required so buyers can actually reach you. Your listing appears under
+    each commodity you tick, badged “self-listed” next to the official-directory suppliers.</p>
+</section>
+{% endblock %}

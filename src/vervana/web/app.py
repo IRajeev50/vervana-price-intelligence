@@ -627,8 +627,80 @@ def sourcing_contact_add(
             note=note.strip(),
             source=source.strip() or "manual entry",
         )
-    url = f"/sourcing/contact?market_id={market_id}&market={quote(market)}&ok={quote(contact_name.strip())}"
+    cn = quote(contact_name.strip())
+    url = f"/sourcing/contact?market_id={market_id}&market={quote(market)}&ok={cn}"
     return RedirectResponse(url, status_code=303)
+
+
+# Supplier self-registration: OPEN (a supplier lists themselves - that is the point).
+# Entries are marked self-registered/unverified so a buyer can tell them from the
+# official-directory suppliers; a real deployment would add moderation/captcha.
+SELF_SOURCE = "Self-registered (unverified)"
+
+
+@app.get("/sourcing/register", response_class=HTMLResponse)
+def sourcing_register_form(request: Request, ok: str = "", err: str = ""):
+    from vervana.geo import states as geo_states
+    from vervana.repository.sourcing import sourced_commodities
+
+    with session_scope() as s:
+        commodities = sourced_commodities(s)
+    return TEMPLATES.TemplateResponse(
+        request,
+        "register.html",
+        _ctx(request, commodities=commodities, states=geo_states(), ok=ok, err=err),
+    )
+
+
+@app.post("/sourcing/register")
+async def sourcing_register_submit(request: Request):
+    from urllib.parse import quote
+
+    from vervana.repository.sourcing import import_suppliers, sourced_commodities
+
+    # Read the multi-value "commodity" checkboxes from the form directly.
+    form = await request.form()
+    name = (form.get("name") or "").strip()
+    org_type = (form.get("org_type") or "").strip()
+    state = (form.get("state") or "").strip()
+    district = (form.get("district") or "").strip()
+    phone = (form.get("phone") or "").strip()
+    email = (form.get("email") or "").strip()
+    commodity = [c for c in form.getlist("commodity") if isinstance(c, str)]
+
+    if not name:
+        return RedirectResponse("/sourcing/register?err=Your+name+is+required", status_code=303)
+    if not (phone.strip() or email.strip()):
+        return RedirectResponse(
+            "/sourcing/register?err=A+phone+or+email+is+required+so+buyers+can+reach+you",
+            status_code=303,
+        )
+    with session_scope() as s:
+        valid = set(sourced_commodities(s))
+        comms = [c for c in commodity if c in valid]
+        if not comms:
+            return RedirectResponse(
+                "/sourcing/register?err=Pick+at+least+one+commodity+you+supply", status_code=303
+            )
+        records = [
+            {
+                "commodity": c,
+                "name": name,
+                "org_type": org_type.strip() or "Self-listed supplier",
+                "state": state.strip() or None,
+                "district": district.strip() or None,
+                "address": None,
+                "contact_name": None,
+                "phone": phone.strip() or None,
+                "email": email.strip() or None,
+                "source": SELF_SOURCE,
+                "source_url": "self-registration",
+            }
+            for c in comms
+        ]
+        import_suppliers(s, records)
+    msg = f"{name} listed for {', '.join(comms)}"
+    return RedirectResponse(f"/sourcing/register?ok={quote(msg)}", status_code=303)
 
 
 @app.get("/forecast", response_class=HTMLResponse)

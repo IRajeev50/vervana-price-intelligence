@@ -106,3 +106,67 @@ def test_directory_rows_require_provenance(session):
     contacts = supplier_contacts(session, m.id)
     assert contacts[0].contact_name == "Ravi"
     assert contacts[0].source  # provenance is never blank
+
+
+def test_self_registration_creates_self_listed_suppliers(tmp_path, monkeypatch):
+    """A supplier lists themselves via the open form; entry is marked self-listed."""
+    from datetime import datetime
+
+    from fastapi.testclient import TestClient
+
+    from vervana.db.base import Base, TimeBasis
+    from vervana.db.engine import make_engine, session_scope
+    from vervana.repository.sourcing import list_suppliers
+
+    url = f"sqlite:///{tmp_path / 'reg.sqlite3'}"
+    monkeypatch.setenv("VERVANA_DATABASE_URL", url)
+    Base.metadata.create_all(make_engine(url))
+    with session_scope() as s:
+        c = Commodity(canonical_name="Onion")
+        m = Market(canonical_name="Azadpur", city="Delhi", state="Delhi")
+        s.add_all([c, m])
+        s.flush()
+        insert_observation(
+            s,
+            commodity_id=c.id,
+            market_id=m.id,
+            source_class=SourceClass.executed_summary,
+            price_low_paise=1000,
+            price_high_paise=1000,
+            unit_raw="Quintal",
+            canonical_price_paise_per_kg=1000,
+            source_url="https://x",
+            raw_quote="{}",
+            observed_at=datetime(2026, 9, 20, tzinfo=IST),
+            time_basis=TimeBasis.daily_summary,
+        )
+
+    from vervana.web.app import app
+
+    client = TestClient(app)
+    ok = client.post(
+        "/sourcing/register",
+        data={
+            "name": "Test Growers",
+            "phone": "9990001234",
+            "state": "Delhi",
+            "commodity": ["Onion"],
+        },
+        follow_redirects=False,
+    )
+    assert ok.status_code == 303 and "ok=" in ok.headers["location"]
+    with session_scope() as s:
+        rows = list_suppliers(s, "Onion")
+    listed = next(r for r in rows if r["name"] == "Test Growers")
+    assert listed["source"].startswith("Self-registered")  # provenance says self-listed
+    assert listed["phone"] == "9990001234"
+
+    # No contact -> rejected, nothing added (a listing with no way to reach it is useless).
+    bad = client.post(
+        "/sourcing/register",
+        data={"name": "No Contact", "commodity": ["Onion"]},
+        follow_redirects=False,
+    )
+    assert bad.status_code == 303 and "err=" in bad.headers["location"]
+    with session_scope() as s:
+        assert not any(r["name"] == "No Contact" for r in list_suppliers(s, "Onion"))
