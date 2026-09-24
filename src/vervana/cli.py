@@ -1106,5 +1106,32 @@ def sourcing_import_cdb_coconut() -> None:
     typer.echo(f"source: {url}")
 
 
+@sourcing_app.command("import-spices-fpo")
+def sourcing_import_spices_fpo() -> None:
+    """Import the official Spices Board FPO/FPC directory (pepper, turmeric, etc.).
+
+    One producer organisation that grows several spices becomes one supplier row
+    per priced commodity (Pepper->Black pepper, Turmeric, Ginger, Chilli->Dry
+    Chillies), so each shows under its commodity on the sourcing board.
+    """
+    from vervana.db.engine import session_scope
+    from vervana.repository.sourcing import import_suppliers
+    from vervana.supply.spices_fpo import build_supplier_records
+
+    try:
+        records, url = build_supplier_records()
+    except Exception as exc:
+        typer.echo(f"spices-fpo import failed: {exc}", err=True)
+        raise typer.Exit(code=1) from None
+    with_phone = sum(1 for r in records if r.get("phone"))
+    with session_scope() as session:
+        res = import_suppliers(session, records)
+    typer.echo(
+        f"Spices Board FPO suppliers: rows={len(records)} "
+        f"(with phone={with_phone}) added={res['added']} updated={res['updated']}"
+    )
+    typer.echo(f"source: {url}")
+
+
 if __name__ == "__main__":  # pragma: no cover
     app()
