@@ -996,7 +996,8 @@ def crops_import_apy(
     with session_scope() as session:
         res = import_apy_csv(session, path)
         typer.echo(
-            f"crop production rows added={res['added']} skipped={res['skipped']} rejected={res['rejected']}"
+            f"crop production rows added={res['added']} "
+            f"skipped={res['skipped']} rejected={res['rejected']}"
         )
         for reason, count in sorted(res["reasons"].items(), key=lambda kv: -kv[1]):
             typer.echo(f"  rejected [{count}]: {reason}")
@@ -1101,6 +1102,36 @@ def sourcing_import_cdb_coconut() -> None:
         res = import_suppliers(session, records)
     typer.echo(
         f"CDB coconut suppliers: parsed={len(records)} "
+        f"(with phone={with_phone}) added={res['added']} updated={res['updated']}"
+    )
+    typer.echo(f"source: {url}")
+
+
+@sourcing_app.command("import-sfac-fpo")
+def sourcing_import_sfac_fpo() -> None:
+    """Import the national SFAC FPO directory - suppliers across all commodities.
+
+    Extracted by table cell (pdfplumber) so FPO names are clean. Only crops that
+    map to a PRICED canonical commodity are kept, so every imported supplier
+    surfaces under a commodity the platform tracks.
+    """
+    from vervana.db.engine import session_scope
+    from vervana.repository.sourcing import import_suppliers, sourced_commodities
+    from vervana.supply.sfac_fpo import build_supplier_records
+
+    try:
+        records, url = build_supplier_records()
+    except Exception as exc:
+        typer.echo(f"sfac-fpo import failed: {exc}", err=True)
+        raise typer.Exit(code=1) from None
+    with session_scope() as session:
+        priced = set(sourced_commodities(session))
+        records = [r for r in records if r["commodity"] in priced]
+        n_comm = len({r["commodity"] for r in records})
+        with_phone = sum(1 for r in records if r.get("phone"))
+        res = import_suppliers(session, records)
+    typer.echo(
+        f"SFAC FPO suppliers: rows={len(records)} across {n_comm} commodities "
         f"(with phone={with_phone}) added={res['added']} updated={res['updated']}"
     )
     typer.echo(f"source: {url}")
