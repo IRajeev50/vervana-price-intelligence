@@ -4,8 +4,8 @@ SFAC (Small Farmers' Agribusiness Consortium, under the Ministry of Agriculture)
 publishes a state-wise directory of Farmer Producer Organisations with FPO name,
 address, contact and major crops. This is the honest "all commodities" source: a
 single official directory whose crops map to onion, potato, tomato, paddy(rice),
-wheat, cotton, pulses and more - so a buyer choosing almost any priced commodity
-sees real producers to contact.
+wheat, cotton, pulses, marigold and other flowers, and more - so a buyer choosing
+almost any priced commodity sees real producers to contact.
 
 The PDF is an 11-column table whose flowing text is unusable (columns interleave),
 so extraction is done by TABLE CELL via pdfplumber - the FPO Name, Contact and
@@ -81,6 +81,33 @@ CROP_TO_COMMODITY: dict[str, str] = {
     "guava": "Guava",
     "papaya": "Papaya",
     "carrot": "Carrot",
+    # --- Flowers / floriculture -------------------------------------------
+    # The generic "flower" key below must never swallow a *vegetable* or
+    # *oilseed* whose name merely ends in "flower". Because the longest
+    # matching key wins per crop token, these explicit (longer) keys claim
+    # cauliflower / sunflower / safflower first - including the misspellings
+    # that actually appear in the SFAC cells ("Couliflower", "Cauiflower").
+    # ("cauliflower" itself is already keyed in the vegetables block above.)
+    "couliflower": "Cauliflower",
+    "cauiflower": "Cauliflower",
+    "sunflower": "Sunflower/Sunflower Seed",
+    "safflower": "Safflower",
+    # Ornamentals. Marigold is the one the sourcing page asks for; the rest map
+    # to their own priced flower commodities so a flower-growing FPO surfaces
+    # under every flower it actually lists. "tuberose" (longer) beats "rose".
+    "marigold": "Marigold(loose)",
+    "genda": "Marigold(loose)",
+    "tuberose": "Tube Rose(Loose)",
+    "rose": "Rose(Local)",
+    "jasmine": "Jasmine",
+    "mogra": "Jasmine",
+    "chrysanth": "Flowers-Others",
+    "sevanti": "Flowers-Others",
+    "gerbera": "Flowers-Others",
+    "gladiol": "Flowers-Others",
+    # Only reached when a crop token says "flower(s)" and is NOT one of the
+    # longer -flower keys above.
+    "flower": "Flowers-Others",
 }
 _CROP_KEYS = sorted(CROP_TO_COMMODITY, key=len, reverse=True)
 # Lines that are a role/label, not the contact's name (honorifics like Shri/Mr
