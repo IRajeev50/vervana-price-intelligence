@@ -9,7 +9,7 @@ rows without a serial / name / mapped crop are skipped.
 
 from __future__ import annotations
 
-from vervana.supply.sfac_fpo import parse_sfac_rows
+from vervana.supply.sfac_fpo import _map_crops, parse_sfac_rows
 
 _HDR = [
     "S. No.",
@@ -93,3 +93,25 @@ def test_unmapped_and_malformed_rows_skipped():
     recs = parse_sfac_rows(ROWS)
     # Barak Valley (nutmeg/clove only) and the junk row produce nothing.
     assert all(r.name != "Barak Valley FPC" for r in recs)
+
+
+def test_flower_crops_map_and_flower_vegetables_are_not_misread():
+    # Ornamentals surface under their own priced commodity; "tuberose" wins over
+    # the shorter "rose"; a flower-growing FPO fans out to each flower it lists.
+    assert _map_crops("Rose, Marigold") == ["Marigold(loose)", "Rose(Local)"]
+    assert _map_crops("Flowers & Potato") == ["Flowers-Others", "Potato"]
+    assert _map_crops("Chrysanthemum") == ["Flowers-Others"]
+    assert _map_crops("Jasmine (Mogra)") == ["Jasmine"]
+    assert _map_crops("Tuberose") == ["Tube Rose(Loose)"]
+
+    # The generic "flower" key must never swallow a vegetable or oilseed that
+    # merely ends in -flower - including the misspellings seen in the real cells.
+    assert _map_crops("Potato, Cauliflower") == ["Cauliflower", "Potato"]
+    assert _map_crops("Cabbage, Couliflower") == ["Cabbage", "Cauliflower"]
+    assert _map_crops("Tur, Sunflower") == [
+        "Arhar (Tur/Red Gram)(Whole)",
+        "Sunflower/Sunflower Seed",
+    ]
+    # "Caster" (castor) contains the substring "aster" but must stay unmapped as
+    # a flower - no ornamental key may match it.
+    assert _map_crops("Paddy, Caster, Brinjal") == ["Brinjal", "Rice"]
