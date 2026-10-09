@@ -1164,5 +1164,134 @@ def sourcing_import_spices_fpo() -> None:
     typer.echo(f"source: {url}")
 
 
+# ---------------------------------------------------------------------------
+# weather: WeatherUnion (Zomato) hyperlocal readings - a context layer, not a
+# price. Needs a free API key (VERVANA_WEATHER_UNION_API_KEY); without it,
+# `capture` stores nothing and says so.
+# ---------------------------------------------------------------------------
+weather_app = typer.Typer(
+    help="WeatherUnion hyperlocal weather (context signal, never a price).",
+    no_args_is_help=True,
+)
+app.add_typer(weather_app, name="weather")
+
+
+@weather_app.command("status")
+def weather_status() -> None:
+    """Show whether the WeatherUnion key is configured and how many readings are stored."""
+    from vervana.db.engine import session_scope
+    from vervana.repository.weather import observation_count
+    from vervana.weather.localities import load_localities
+
+    settings = get_settings()
+    configured = bool(settings.weather_union_api_key)
+    localities = load_localities()
+    typer.echo(f"WeatherUnion API key: {'configured' if configured else 'NOT configured'}")
+    typer.echo(f"endpoint: {settings.weather_union_url}")
+    typer.echo(f"localities polled: {len(localities)} ({', '.join(x.name for x in localities)})")
+    try:
+        with session_scope() as session:
+            n = observation_count(session)
+    except Exception:
+        n = 0
+    typer.echo(f"readings in store: {n}")
+    if not configured:
+        typer.echo(
+            "-> set VERVANA_WEATHER_UNION_API_KEY in .env to enable `weather capture` "
+            "(free key from the WeatherUnion dashboard)."
+        )
+
+
+@weather_app.command("capture")
+def weather_capture(
+    locality: str = typer.Option("", help="Limit to one locality name (default: all)."),
+) -> None:
+    """Fetch current weather for each locality and store it (append-only).
+
+    A WEATHER signal, never a price. Each locality that answers is stored with its
+    source URL and capture time; a locality the API has no data for is reported
+    and skipped - nothing is invented. Fails loudly if the API key is unset.
+    """
+    from vervana.db.engine import session_scope
+    from vervana.repository.weather import record_weather
+    from vervana.weather.localities import load_localities
+    from vervana.weather.weatherunion import WeatherUnionError, fetch_reading
+
+    settings = get_settings()
+    if not settings.weather_union_api_key:
+        typer.echo(
+            "WeatherUnion API key not configured - set VERVANA_WEATHER_UNION_API_KEY in .env "
+            "(free key from the WeatherUnion dashboard). Storing nothing.",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+    localities = load_localities()
+    if locality:
+        localities = [x for x in localities if x.name.lower() == locality.lower()]
+        if not localities:
+            typer.echo(
+                f"unknown locality '{locality}' - see data/config/weather_localities.csv", err=True
+            )
+            raise typer.Exit(code=1)
+    if not localities:
+        typer.echo("no localities configured - see data/config/weather_localities.csv", err=True)
+        raise typer.Exit(code=1)
+
+    stored = 0
+    failed = 0
+    with session_scope() as session:
+        for loc in localities:
+            try:
+                reading = fetch_reading(
+                    lat=loc.lat, lon=loc.lon, locality=loc.name, settings=settings
+                )
+            except WeatherUnionError as exc:
+                failed += 1
+                typer.echo(f"  [skip] {loc.name}: {exc}")
+                continue
+            record_weather(session, reading, source_url=settings.weather_union_url)
+            stored += 1
+            bits = []
+            if reading.temperature_c is not None:
+                bits.append(f"{reading.temperature_c:.1f}C")
+            if reading.humidity_pct is not None:
+                bits.append(f"{reading.humidity_pct:.0f}%RH")
+            if reading.rain_accumulation is not None:
+                bits.append(f"rain {reading.rain_accumulation:.1f}mm")
+            typer.echo(f"  [ok]   {loc.name}: {', '.join(bits) or 'stored (fields sparse)'}")
+    typer.echo(f"weather capture: stored={stored} skipped={failed}")
+
+
+@weather_app.command("show")
+def weather_show() -> None:
+    """Print the latest stored reading per locality."""
+    from vervana.db.engine import session_scope
+    from vervana.repository.weather import latest_per_locality
+    from vervana.time import to_ist
+
+    with session_scope() as session:
+        rows = latest_per_locality(session)
+        if not rows:
+            typer.echo("no weather readings stored yet - run `vervana weather capture`.")
+            return
+        for r in rows:
+            when = to_ist(r.observed_at).strftime("%Y-%m-%d %H:%M IST")
+            parts = []
+            if r.temperature_c is not None:
+                parts.append(f"temp={r.temperature_c:.1f}C")
+            if r.humidity_pct is not None:
+                parts.append(f"humidity={r.humidity_pct:.0f}%")
+            if r.wind_speed is not None:
+                parts.append(f"wind={r.wind_speed:.1f}")
+            if r.rain_intensity is not None:
+                parts.append(f"rain_int={r.rain_intensity:.1f}")
+            if r.rain_accumulation is not None:
+                parts.append(f"rain_acc={r.rain_accumulation:.1f}mm")
+            if r.aqi_pm25 is not None:
+                parts.append(f"pm2.5={r.aqi_pm25:.0f}")
+            typer.echo(f"{r.locality:18s} {when}  " + ", ".join(parts))
+
+
 if __name__ == "__main__":  # pragma: no cover
     app()
