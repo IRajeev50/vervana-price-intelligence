@@ -633,6 +633,41 @@ def supply_status() -> None:
         typer.echo("observed supply signals in store: none yet")
 
 
+@supply_app.command("weatherunion-status")
+def supply_weatherunion_status() -> None:
+    """Report the honest access seam; configured does not mean verified/live."""
+    from vervana.supply.weatherunion import WeatherUnionClient
+
+    status = WeatherUnionClient().status()
+    typer.echo(f"[SCAFFOLD] {status.title}: {status.state}")
+    typer.echo(status.hint)
+
+
+@supply_app.command("weatherunion-fetch")
+def supply_weatherunion_fetch(
+    latitude: float,
+    longitude: float,
+    region: str,
+) -> None:
+    """Fetch one point's current weather; no historical backfill or forecast claim."""
+    from vervana.db.engine import session_scope
+    from vervana.supply.scaffold import PartnerAccessPending
+    from vervana.supply.weatherunion import WeatherUnionClient, WeatherUnionError, store_snapshot
+
+    try:
+        snapshot = WeatherUnionClient().fetch(latitude=latitude, longitude=longitude)
+        with session_scope() as session:
+            measured = store_snapshot(session, snapshot, region=region)
+    except (PartnerAccessPending, WeatherUnionError, ValueError) as exc:
+        typer.echo(f"Weather Union: {exc}", err=True)
+        raise typer.Exit(1) from None
+    except Exception:
+        # Database/driver errors can include credential-bearing connection URLs.
+        typer.echo("Weather Union storage failed; transaction rolled back", err=True)
+        raise typer.Exit(1) from None
+    typer.echo(f"Stored {measured} measured weather features for {region}; station time unknown")
+
+
 @supply_app.command("ndvi")
 def supply_ndvi(
     zone: str = typer.Option("", help="Limit to one zone id (default: all zones)."),
