@@ -14,6 +14,7 @@ from vervana.models.retail import RetailOfferDetail
 from vervana.models.review import AliasReview
 from vervana.models.sourcing import Buyer, Supplier, SupplierContact
 from vervana.models.units import UnitConvention
+from vervana.models.weather import WeatherObservation
 
 __all__ = [
     "Alias",
@@ -37,4 +38,5 @@ __all__ = [
     "SupplierContact",
     "UnitConvention",
     "Variety",
+    "WeatherObservation",
 ]

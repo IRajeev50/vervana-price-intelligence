@@ -115,6 +115,19 @@ class Settings(BaseSettings):
     google_alu_api_url: str | None = None
     google_amed_api_url: str | None = None
 
+    # --- WeatherUnion (Zomato) hyperlocal weather (M11 context layer) ---
+    # Real-time temperature/humidity/wind/rain (and PM2.5/PM10) from Zomato's
+    # crowd-sourced station network, keyed by lat/long. A WEATHER signal, NOT a
+    # price: it never touches price_observation. The endpoint needs a free API key
+    # (header X-Zomato-Api-Key) you register for on the WeatherUnion dashboard;
+    # without it `vervana weather capture` reports "not configured" and stores
+    # nothing - it never invents a reading. Override the URL only if Zomato moves it.
+    weather_union_api_key: str | None = None
+    weather_union_url: str = (
+        "https://www.weatherunion.com/gw/weather/external/v0/get_weather_data"
+    )
+    weather_union_timeout_seconds: float = 30.0
+
     # --- Secrets (no real defaults; must come from env when the feature needs them) ---
 
 
