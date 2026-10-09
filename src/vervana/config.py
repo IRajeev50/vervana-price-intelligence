@@ -8,6 +8,7 @@ responsible for failing loudly when it is missing, not the config layer.
 
 from __future__ import annotations
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # The whole system operates in Asia/Kolkata (Part 7). This is a hard constant,
@@ -88,6 +89,9 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///vervana.dev.sqlite3"
     turso_database_url: str | None = None
     turso_auth_token: str | None = None
+
+    # Weather Union: current point weather only; key masked in settings/repr.
+    weatherunion_api_key: SecretStr | None = None
 
     # --- Supply-side feeds (M11; safe defaults, secrets stay None) ---
     # Copernicus Data Space (Sentinel-2 NDVI fallback path): free OAuth client.
