@@ -115,6 +115,15 @@ class Settings(BaseSettings):
     google_alu_api_url: str | None = None
     google_amed_api_url: str | None = None
 
+    # --- Flood Hub (Google Research) riverine flood overlay (M15, SCAFFOLD) ---
+    # A tail-event RISK OVERLAY, never a band feature and never rainfall: Flood Hub
+    # forecasts riverine flooding only. Free REST API but API-key + activation gated
+    # (waitlist). Without the key, `vervana supply floodhub-fetch` reports "access
+    # pending (waitlist)" and fetches nothing. Gauges are discovered by AREA
+    # (SearchGaugesByArea) on first access - no gauge IDs are hardcoded.
+    floodhub_api_key: str | None = None
+    floodhub_api_url: str = "https://floodforecasting.googleapis.com/v1"
+
     # --- WeatherNext 3 (Google DeepMind) forward weather forecast (M13) ---
     # SCAFFOLD until the allowlist approves access. The feed emits weather_forecast
     # rows (precip p10/p50/p90, tmax/tmin per zone per valid date), NOT prices and

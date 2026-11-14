@@ -513,9 +513,42 @@ def forecast_margin_watch(
         else:
             band = conformal_band(series)
             served = "baseline band (conformal) — challenger not shippable"
+        flood_lines = _flood_overlay_lines(session, commodity)
     verdict = margin_watch(round(price * 100), band)
     typer.echo(f"{commodity} @ {market} — serving: {served}")
     typer.echo(f"[{verdict.zone.upper()}] {verdict.label}")
+    for line in flood_lines:
+        typer.echo(line)
+
+
+def _flood_overlay_lines(session, commodity: str) -> list[str]:
+    """Riverine flood overlay lines for a commodity's origin belts (tail-risk only,
+    never a band feature). Explicit about access-pending so silence is never read as
+    'no risk'."""
+    from vervana.repository.flood_overlay import latest_overlay_for_zone
+    from vervana.supply.floodhub import FloodHubClient
+    from vervana.supply.zones import load_zones
+
+    belts = [z for z in load_zones() if commodity in z.commodities]
+    if not belts:
+        return ["flood overlay: no origin belt mapped for this commodity (riverine-only)."]
+    if not FloodHubClient(get_settings()).configured():
+        return [
+            "flood overlay (riverine): Flood Hub access pending — no overlay available "
+            "(this is NOT 'no flood risk', just no data)."
+        ]
+    lines = []
+    for z in belts:
+        row = latest_overlay_for_zone(session, z.zone)
+        if row is None:
+            lines.append(f"flood overlay (riverine) {z.zone}: no gauge data.")
+        else:
+            trend = f", {row.trend.lower()}" if row.trend else ""
+            flag = "SUPPLY SHOCK POSSIBLE" if row.severity != "NO_FLOODING" else "normal"
+            lines.append(
+                f"flood overlay (riverine) {z.zone}: {row.severity}{trend} — {flag}."
+            )
+    return lines
 
 
 @forecast_app.command("prospective")
@@ -837,6 +870,47 @@ def supply_weathernext_fetch(
         total = forecast_count(session)
     typer.echo(
         f"WeatherNext forecasts: rows={len(records)} "
+        f"added={res['added']} updated={res['updated']} (total in store={total})"
+    )
+
+
+@supply_app.command("floodhub-fetch")
+def supply_floodhub_fetch(
+    zone: str = typer.Option("", help="Limit to one zone id (default: all zones)."),
+) -> None:
+    """Fetch + store Flood Hub riverine overlays (SCAFFOLD - access pending).
+
+    A tail-event RISK OVERLAY, never a band feature and never rainfall. Until the
+    Flood Forecasting API key is set, this reports "access pending" and stores
+    nothing - it never fabricates a flood status.
+    """
+    from vervana.db.engine import session_scope
+    from vervana.repository.flood_overlay import overlay_count, record_overlays
+    from vervana.supply.floodhub import FloodHubClient
+    from vervana.supply.scaffold import PartnerAccessPending
+    from vervana.supply.zones import load_zones
+
+    zones = load_zones()
+    if zone:
+        zones = [z for z in zones if z.zone == zone]
+        if not zones:
+            typer.echo(f"unknown zone '{zone}' - see data/config/supply_zones.csv", err=True)
+            raise typer.Exit(code=1)
+
+    client = FloodHubClient(get_settings())
+    try:
+        overlays = client.fetch_overlays(zones)
+    except PartnerAccessPending as exc:
+        s = client.status()
+        typer.echo(f"{s.title} [{s.state}]")
+        typer.echo(str(exc))
+        typer.echo("nothing was fetched and nothing was faked. (riverine-only overlay)")
+        return  # expected state, not an error
+    with session_scope() as session:
+        res = record_overlays(session, overlays, source_url=get_settings().floodhub_api_url)
+        total = overlay_count(session)
+    typer.echo(
+        f"Flood Hub overlays: zones={len(overlays)} "
         f"added={res['added']} updated={res['updated']} (total in store={total})"
     )
 
