@@ -4,6 +4,7 @@ from vervana.models.aspirational import AspirationalDistrict
 from vervana.models.context import ContextSignal
 from vervana.models.crop_production import CropDistrictYearRollup, CropProductionRecord
 from vervana.models.entities import Alias, Commodity, Grade, Market, Variety
+from vervana.models.flood_overlay import FloodOverlayRow
 from vervana.models.forecast_log import ProspectiveForecast
 from vervana.models.ingest import IngestRun
 from vervana.models.intelligence import IntelligenceReportRecord
@@ -26,6 +27,7 @@ __all__ = [
     "ContextSignal",
     "CropDistrictYearRollup",
     "CropProductionRecord",
+    "FloodOverlayRow",
     "Grade",
     "IngestRun",
     "IntelligenceReportRecord",

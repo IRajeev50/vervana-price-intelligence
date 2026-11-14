@@ -31,6 +31,8 @@ rapidfuzz, indic-transliteration, jellyfish, psycopg). The embedding/torch match
 stays **deferred** (it would force a larger, costlier VPS); the shipped matchers are
 lexical + phonetic, both light.
 
+**M15 (Phase 3) adds ₹0 fixed cost.** Flood Hub's Flood Forecasting API is free; the overlay is a scaffold (access pending) making no requests. When access lands, belt gauge queries are a few calls/day ≈ ₹0. No new infra. Under the ₹25,000 ceiling.
+
 **M14 (Phase 2) adds ₹0 fixed cost.** The quantile band + margin watch are CPU-only
 (numpy + scikit-learn, already deps); the backtest runs offline on the existing
 store. No new infra. Cumulative fixed cost unchanged, well under the ₹25,000 ceiling.

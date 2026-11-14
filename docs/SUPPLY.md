@@ -149,3 +149,28 @@ Boundaries, enforced in code:
 - `harvest_progress_pct` >= 50 -> supply score +1 (harvest past halfway: the
   crop is physically moving toward mandis now). It is a TIMING signal, not a
   volume signal.
+
+## Flood Hub - riverine flood risk overlay (M15, SCAFFOLD)
+
+A **tail-event risk overlay**, deliberately narrow. Google Flood Hub forecasts
+**riverine** flooding (CWC's 1,000+ gauges across India) - **NOT rainfall, NOT
+urban waterlogging, NOT crop stress**. It is labelled **riverine-only** everywhere.
+
+Boundaries, enforced in code:
+- **NEVER a band/price feature.** It is an overlay beside the band / margin watch
+  and a labelled chain signal (`flood_risk_riverine`), never a forecast input.
+- **Overlay mapping (verified `Severity` enum):** a zone's flag is the WORST
+  modelled severity among its gauges over the 7-day window -
+  `EXTREME > SEVERE > ABOVE_NORMAL > NO_FLOODING`. An `UNKNOWN` or un-modelled
+  gauge is **ignored, never counted as "no flooding"**; a zone with no usable
+  gauge yields **no overlay** (distinct from a genuine `NO_FLOODING`).
+- **Gauges discovered by AREA** (`SearchGaugesByArea`) per belt on first access -
+  no gauge IDs are hardcoded. Belt-only for now; transport corridors (belt->Delhi)
+  are a follow-up once belt overlays are proven live.
+- **Access is waitlist + API-key gated and NOT granted.** Until
+  `VERVANA_FLOODHUB_API_KEY` is set, `vervana supply floodhub-fetch` reports
+  "access pending" and stores nothing; the margin-watch overlay line says so
+  explicitly ("access pending - NOT 'no flood risk', just no data"), so silence is
+  never mistaken for safety.
+- Stored append-only in `flood_overlay` (its own table; a flood flag is neither a
+  price nor a forecast feature), idempotent on (zone, issued_time).
