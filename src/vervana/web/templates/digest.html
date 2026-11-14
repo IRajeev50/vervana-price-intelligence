@@ -89,7 +89,7 @@
     <div class="freshness-item freshness-item--live">
       <div class="freshness-item__tag">Wholesale · near-live</div>
       <p>Agmarknet wholesale prices are <strong>real and refreshed daily</strong> by the ingest pipeline
-        (data.gov.in, GODL-India) — {{ options.qcomm|length + options.wholesale_only|length }} commodities
+        (Agmarknet 2.0 API, GODL-India) — {{ options.qcomm|length + options.wholesale_only|length }} commodities
         carry a national reference. This is as live as the official feed gets.</p>
     </div>
     <div class="freshness-item freshness-item--panel">
@@ -112,5 +112,5 @@
 </div>
 
 <details class="raw-output"><summary>View plain-text broadcast payload</summary><pre>{{ digest }}</pre></details>
-<p class="muted small">Not trading advice. National wholesale via Agmarknet (data.gov.in); DMI does not warrant accuracy. Delhi video rows are manually transcribed indicative quotes. Retail rows are manual quick-commerce observations.</p>
+<p class="muted small">Not trading advice. National wholesale via Agmarknet 2.0 (api.agmarknet.gov.in); DMI does not warrant accuracy. Delhi video rows are manually transcribed indicative quotes. Retail rows are manual quick-commerce observations.</p>
 {% endblock %}
