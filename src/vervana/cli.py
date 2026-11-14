@@ -464,6 +464,60 @@ def forecast_status() -> None:
     typer.echo(d.reason)
 
 
+@forecast_app.command("band")
+def forecast_band(min_train: int = 14, min_days: int = 20) -> None:
+    """Backtest the p10/p50/p90 price band across the store and apply the per-commodity
+    kill (ships only where it beats anchor + seasonal with in-window coverage)."""
+    from vervana.db.engine import session_scope
+    from vervana.forecast.band_runner import backtest_bands, format_band_summary
+
+    with session_scope() as session:
+        payload = backtest_bands(session, min_train=min_train, min_days=min_days)
+    typer.echo(format_band_summary(payload))
+    typer.echo("")
+    typer.echo("saved: data/backtests/band_latest.json")
+
+
+@forecast_app.command("margin-watch")
+def forecast_margin_watch(
+    commodity: str,
+    market: str,
+    price: float = typer.Option(..., help="Quoted/executed price in ₹/kg."),
+    min_train: int = 14,
+) -> None:
+    """Show where a ₹/kg price sits inside the live band for one commodity-mandi."""
+    from sqlalchemy import select
+
+    from vervana.db.engine import session_scope
+    from vervana.forecast.band import conformal_band, quantile_gb_band
+    from vervana.forecast.kill import load_band_decision
+    from vervana.forecast.margin import margin_watch
+    from vervana.forecast.series import price_series
+    from vervana.models.entities import Commodity, Market
+
+    with session_scope() as session:
+        c = session.scalar(select(Commodity).where(Commodity.canonical_name == commodity))
+        m = session.scalar(select(Market).where(Market.canonical_name == market))
+        if c is None or m is None:
+            typer.echo(f"unknown commodity/market: {commodity} @ {market}", err=True)
+            raise typer.Exit(code=1)
+        series = price_series(session, commodity_id=c.id, market_id=m.id)
+        if series.size <= min_train + 1:
+            typer.echo(f"not enough history for {commodity} @ {market} ({series.size} days)")
+            raise typer.Exit(code=1)
+        # Serve the challenger band only where the kill says it ships; else the
+        # labelled baseline band (R7 discipline, carried to the band).
+        decision = load_band_decision(commodity)
+        if decision.shippable:
+            band, served = quantile_gb_band(series), "challenger band (quantile-GB)"
+        else:
+            band = conformal_band(series)
+            served = "baseline band (conformal) — challenger not shippable"
+    verdict = margin_watch(round(price * 100), band)
+    typer.echo(f"{commodity} @ {market} — serving: {served}")
+    typer.echo(f"[{verdict.zone.upper()}] {verdict.label}")
+
+
 @forecast_app.command("prospective")
 def forecast_prospective(commodities: str = "", market: str = "Azadpur") -> None:
     """Post tomorrow's call for a basket to the public prospective log (append-only)."""

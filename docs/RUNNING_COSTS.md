@@ -31,6 +31,10 @@ rapidfuzz, indic-transliteration, jellyfish, psycopg). The embedding/torch match
 stays **deferred** (it would force a larger, costlier VPS); the shipped matchers are
 lexical + phonetic, both light.
 
+**M14 (Phase 2) adds ₹0 fixed cost.** The quantile band + margin watch are CPU-only
+(numpy + scikit-learn, already deps); the backtest runs offline on the existing
+store. No new infra. Cumulative fixed cost unchanged, well under the ₹25,000 ceiling.
+
 **M13 (Phase 1) adds ₹0 fixed cost today** (scaffold, access pending — no requests
 made). When WeatherNext access lands: the **daily forward pull** is a few grid points
 × 15 days × a handful of percentile/temp columns ≈ megabytes/day → ~₹0 of BigQuery

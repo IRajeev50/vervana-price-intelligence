@@ -123,3 +123,31 @@ as they were. The review is repeatable: same harness, same walk-forward rule.
   always uses all regions; producer-group feeds are not connected yet, and the
   UI says so rather than implying region- or group-specific analysis exists.
 
+
+## Price band + margin watch (M14)
+
+The product direction, settled after a 5-method point forecaster lost to the
+last-price anchor: not a point prediction, but a **quantile band** (p10/p50/p90)
+per commodity-mandi plus a **margin watch**.
+
+- **Two bands** (`forecast/band.py`): a **conformal** baseline band (split-conformal
+  residual quantiles around seasonal_naive) and a **quantile-GB** challenger. The
+  conformal band is also the labelled fallback served when the challenger loses.
+- **Kill discipline** (`forecast/kill.py`): a commodity's challenger band ships only
+  if its **p50 beats the anchor AND seasonal_naive on MAE and WAPE**, and realized
+  coverage of the p10-p90 interval lands in **[75%, 88%]** (decision 3a: p10/p90 is
+  an 80% nominal interval). Roll-up is **per commodity by majority** of its
+  qualifying mandis. Fail-closed from `data/backtests/band_latest.json`.
+- **With / without weather:** features (`forecast/features.py`) are price lags +
+  rolling stats + weekly term today. A **weather** feature group (WeatherNext) and
+  an **arrivals** group are wired but EMPTY (weather: access pending; arrivals: not
+  stored - see M14-done.md), so the band can be rebacktested with them the day they
+  exist. No weather number is faked before then.
+- **Margin watch** (`forecast/margin.py`): `margin_watch(price, band)` -> below-band
+  / favorable / watch / caution, always labelled with the band it was judged
+  against. `vervana forecast margin-watch <commodity> <market> --price`. Phase 4
+  feeds GRN lines through this exact function.
+- **Honest M14 result:** on the current store (deepest series ~27 days, no weather)
+  **0 of 45 commodities** cleared the bar - serving the labelled baseline band
+  everywhere. The band inherits RISK[R7-FORECAST-BAR] and R13; it does not escape
+  them. Revisit as daily history deepens and weather lands.

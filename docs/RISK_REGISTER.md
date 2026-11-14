@@ -76,6 +76,8 @@
 
 ### `R7-FORECAST-BAR`
 
+**M14 band update:** the quantile price band (p10/p50/p90) is held to the same bar — it ships per commodity only if its p50 beats the anchor AND seasonal_naive on MAE and WAPE with coverage in [75%,88%] (`forecast/kill.py::evaluate_band_kill`). On the current store 0/45 commodities cleared it — serving the labelled baseline band everywhere (data/backtests/band_latest.json). Still PENDING; the band inherits this risk.
+
 - **Assumption:** Gradient boosting beats naive baselines on next-day F&V prices.
 - **Evidence against it:** Daily fresh-produce prices are close to a random walk with weather shocks. With ~90 observations per series there is not enough history for tree models to generalise per-series, and none for deep learning. Baselines must always be computed and reported.
 
