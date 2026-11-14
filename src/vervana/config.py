@@ -115,6 +115,20 @@ class Settings(BaseSettings):
     google_alu_api_url: str | None = None
     google_amed_api_url: str | None = None
 
+    # --- WeatherNext 3 (Google DeepMind) forward weather forecast (M13) ---
+    # SCAFFOLD until the allowlist approves access. The feed emits weather_forecast
+    # rows (precip p10/p50/p90, tmax/tmin per zone per valid date), NOT prices and
+    # NOT chain signals. Served from BigQuery: set the project + the precomputed-
+    # percentiles table, and a service-account JSON path (or rely on ADC via
+    # GOOGLE_APPLICATION_CREDENTIALS). With any of these unset the feed reports
+    # "access pending (allowlist)" and fetches nothing - it never fabricates a row.
+    # Historical forecast backfill is CC BY 4.0; real-time forecasts are under
+    # Google's experimental terms (commercial use gated on sign-off - see M13 plan).
+    weathernext_gcp_project: str | None = None
+    weathernext_bq_dataset: str | None = None
+    weathernext_bq_table: str | None = None
+    weathernext_credentials_path: str | None = None
+
     # --- WeatherUnion (Zomato) hyperlocal weather (M11 context layer) ---
     # Real-time temperature/humidity/wind/rain (and PM2.5/PM10) from Zomato's
     # crowd-sourced station network, keyed by lat/long. A WEATHER signal, NOT a

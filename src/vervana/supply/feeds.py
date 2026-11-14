@@ -19,6 +19,7 @@ def collect_feed_status(settings: Settings | None = None) -> list[FeedStatus]:
     """Status of every supply-side feed, fallback first, scaffolds clearly marked."""
     from vervana.supply.alu import AluClient
     from vervana.supply.amed import AmedClient
+    from vervana.supply.weathernext import WeatherNextClient
 
     settings = settings or get_settings()
 
@@ -54,7 +55,13 @@ def collect_feed_status(settings: Settings | None = None) -> list[FeedStatus]:
         docs_url="https://mausam.imd.gov.in/responsive/rainfallinformation.php",
     )
 
-    return [sentinel, imd, AluClient(settings).status(), AmedClient(settings).status()]
+    return [
+        sentinel,
+        imd,
+        WeatherNextClient(settings).status(),
+        AluClient(settings).status(),
+        AmedClient(settings).status(),
+    ]
 
 
 def observed_supply_counts(session: Session) -> dict[str, int]:

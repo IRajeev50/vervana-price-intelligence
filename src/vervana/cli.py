@@ -745,6 +745,48 @@ def supply_rainfall_import(path: Path) -> None:
         typer.echo(f"  rejected [{count}]: {reason}")
 
 
+@supply_app.command("weathernext-fetch")
+def supply_weathernext_fetch(
+    zone: str = typer.Option("", help="Limit to one zone id (default: all zones)."),
+) -> None:
+    """Fetch + store WeatherNext 3 daily forecasts (SCAFFOLD - access pending).
+
+    Queries the BigQuery percentiles table for the watch-zone grid points and
+    stores daily precip p10/p50/p90 + tmax/tmin per zone. Until the allowlist
+    grants access, this reports "access pending" and stores nothing - it never
+    fabricates a forecast row.
+    """
+    from vervana.db.engine import session_scope
+    from vervana.repository.weather_forecast import forecast_count, record_forecasts
+    from vervana.supply.scaffold import PartnerAccessPending
+    from vervana.supply.weathernext import WeatherNextClient
+    from vervana.supply.zones import load_zones
+
+    zones = load_zones()
+    if zone:
+        zones = [z for z in zones if z.zone == zone]
+        if not zones:
+            typer.echo(f"unknown zone '{zone}' - see data/config/supply_zones.csv", err=True)
+            raise typer.Exit(code=1)
+
+    client = WeatherNextClient(get_settings())
+    try:
+        records = client.fetch_forecasts(zones)
+    except PartnerAccessPending as exc:
+        s = client.status()
+        typer.echo(f"{s.title} [{s.state}]")
+        typer.echo(str(exc))
+        typer.echo("nothing was fetched and nothing was faked.")
+        return  # expected state, not an error - exit 0
+    with session_scope() as session:
+        res = record_forecasts(session, records)
+        total = forecast_count(session)
+    typer.echo(
+        f"WeatherNext forecasts: rows={len(records)} "
+        f"added={res['added']} updated={res['updated']} (total in store={total})"
+    )
+
+
 @supply_app.command("alu")
 def supply_alu() -> None:
     """Google ALU seam status (SCAFFOLD - partner access pending)."""

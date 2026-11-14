@@ -31,6 +31,16 @@ rapidfuzz, indic-transliteration, jellyfish, psycopg). The embedding/torch match
 stays **deferred** (it would force a larger, costlier VPS); the shipped matchers are
 lexical + phonetic, both light.
 
+**M13 (Phase 1) adds ₹0 fixed cost today** (scaffold, access pending — no requests
+made). When WeatherNext access lands: the **daily forward pull** is a few grid points
+× 15 days × a handful of percentile/temp columns ≈ megabytes/day → ~₹0 of BigQuery
+query cost. The only real scan is the **one-time 2024-present historical backfill**,
+bounded by column/partition pruning; its cost is estimated and shown in M13-done.md
+*before* the full backfill runs, and if it exceeds a few hundred rupees the run stops
+for a decision. Storage (our `weather_forecast` rows) is negligible. New Python deps
+(`google-cloud-bigquery`) are libraries, ₹0 fixed. Cumulative fixed cost unchanged,
+well under the ₹25,000 ceiling.
+
 **M12 (Phase 0) adds ₹0 fixed cost.** Hygiene (deleting duplicate files) + persistence.
 Turso's free tier hosts the remote libSQL database at ₹0 for this volume and ends the
 repeated Render ephemeral-disk data loss; no new paid component. Cumulative fixed cost
