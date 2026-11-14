@@ -100,6 +100,38 @@ Then wire the fetch into the mapping functions in `vervana.supply.alu` /
 `vervana.supply.amed` and ingest the resulting signals with
 `vervana intelligence signals import-csv` (or a scheduled connector run).
 
+## WeatherNext 3 - forward weather forecast (M13, SCAFFOLD)
+
+A **forward**-looking feed, distinct from the backward signals above: Google
+DeepMind's WeatherNext 3 (hourly init, 15-day horizon, 64-member ensemble). It is
+the forward rain/heat signal the **Phase-2 price band** will try to beat the
+last-price anchor with - it **replaces the manual IMD CSV ritual** as the
+forward rain signal (`rainfall-import` stays as the documented fallback).
+
+Boundaries, enforced in code:
+- A **forecast is not a price and not a chain signal.** It is stored in its own
+  `weather_forecast` table (precip p10/p50/p90, tmax/tmin per zone per valid
+  date) and is **never** joined into `price_observation`.
+- **Cost-safe by design:** BigQuery publishes precomputed surface percentiles, so
+  we query only the grid points nearest our ~13 origin belts - never the global
+  64-member hourly tensor. Daily forward pull is megabytes; the one-time
+  2024-present historical backfill (CC BY 4.0) is the only real scan and is
+  bounded by column/partition pruning.
+- **Daily precip percentile = sum of the hourly percentile** over the day. That is
+  a usable band, not an exact daily quantile (it assumes hourly independence);
+  the band only reaches serving in Phase 2 if it beats the anchor on the
+  walk-forward backtest - the approximation is tested there, never assumed.
+- **Access is allowlist-gated and NOT granted yet.** Until
+  `VERVANA_WEATHERNEXT_GCP_PROJECT` / `_BQ_DATASET` / `_BQ_TABLE` + a credentials
+  path are set, `vervana supply weathernext-fetch` reports "access pending" and
+  stores nothing - it never fabricates a forecast row. The raw BigQuery
+  row -> forecast-point mapping is confirmed against the live catalog on first
+  access; only the model-independent daily aggregation is written (and tested)
+  now.
+- **Terms:** historical backfill is CC BY 4.0 (safe for backtest); real-time
+  forecasts sit under Google's experimental terms - commercial, vendor-facing
+  reliance on real-time data is gated on an explicit terms sign-off (Phase 2).
+
 ## Status surfaces
 
 - `uv run vervana supply status` - every feed, layer, state, next step, plus
@@ -107,6 +139,8 @@ Then wire the fetch into the mapping functions in `vervana.supply.alu` /
 - `/intelligence` - the "Supply-side feeds" table shows the same states;
   scaffold rows carry the amber scaffold pill.
 - `uv run vervana supply alu` / `uv run vervana supply amed` - scaffold detail.
+- `uv run vervana supply weathernext-fetch` - fetch + store daily forecasts;
+  reports "access pending" and stores nothing until the allowlist grants access.
 
 ## Chain rules for the new kinds (thresholds documented in chain.py)
 
