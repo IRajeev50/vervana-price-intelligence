@@ -20,6 +20,7 @@ Three cost stories are kept strictly separate because they behave differently:
 | Domain | (deploy) | ~₹100 | ~₹100 | ~₹100 | Amortised annual. |
 | Object storage (raw payloads, backups) | M2 | ~₹100 | ~₹300 | ~₹800 | Archived raw API/transcript payloads + nightly pg_dump. |
 | CDN (dashboard static) | M3 | ₹0 | ₹0 | ~₹300 | Only meaningful at scale. |
+| Turso (libSQL) hosted DB | M12 | ₹0 | ₹0 | ₹0–small | Free tier (500 DBs, 9 GB, 1bn row-reads/mo) covers this data volume; ends Render ephemeral-disk data loss. |
 | **Fixed total (est.)** | | **₹1,500–2,000** | **₹3,000–4,000** | **₹6,000–8,000** | Ceiling: ₹25,000. Margin ≈ 3×+. |
 
 **M0 adds ₹0 fixed cost** (local dev + free GitHub Actions CI). The first real fixed cost
@@ -29,6 +30,11 @@ is the VPS at deploy time.
 rapidfuzz, indic-transliteration, jellyfish, psycopg). The embedding/torch matching path
 stays **deferred** (it would force a larger, costlier VPS); the shipped matchers are
 lexical + phonetic, both light.
+
+**M12 (Phase 0) adds ₹0 fixed cost.** Hygiene (deleting duplicate files) + persistence.
+Turso's free tier hosts the remote libSQL database at ₹0 for this volume and ends the
+repeated Render ephemeral-disk data loss; no new paid component. Cumulative fixed cost
+unchanged, well under the ₹25,000 ceiling.
 
 **M2 adds ₹0 fixed cost.** New dep is `httpx` (light). The Agmarknet API (data.gov.in) is
 **free** under GODL-India. The only new *variable* item is negligible: outbound API calls
