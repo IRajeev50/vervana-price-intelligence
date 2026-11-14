@@ -51,20 +51,25 @@ signal-to-impact outlooks), **Outlook calendar** (every saved outlook by the dat
 it was made), **Review** (approve alias matches), **Ingest** (capture history).
 The UI runs on the design system in [`docs/UI.md`](docs/UI.md) (M10).
 
-To fill it with live national data (needs your data.gov.in key in `.env`), the daily
-capture runs automatically (see `docs/RUNBOOK.md`), or do it once by hand:
+To fill it with live national data, the daily capture runs automatically (see
+`docs/RUNBOOK.md`), or do it once by hand. The Agmarknet 2.0 public API
+(`api.agmarknet.gov.in`) is **keyless** — no `.env` entry is required:
 
 ```bash
-bash scripts/daily_capture.sh                                   # pull today's snapshot
-uv run vervana registry bootstrap data/raw/agmarknet/snapshot_*.json   # learn its names
-uv run vervana ingest agmarknet-file data/raw/agmarknet/snapshot_*.json # ingest prices
+uv run vervana ingest agmarknet --state Delhi --max-records 100   # keyless live pull + ingest
+uv run vervana ingest history   # every run shows here, including failures
 ```
 
-Or fetch a single state straight from the API (also needs the key in `.env`):
+`scripts/daily_capture.sh` wraps the same keyless call (`vervana ingest agmarknet
+--state Delhi`) with a schema upgrade, a registry seed, and a wait-for-network
+guard, so GitHub Actions / launchd can run it unattended.
+
+To replay a locally-saved payload offline (no network) — or to learn the registry
+names from one — ingest or bootstrap the saved JSON directly:
 
 ```bash
-uv run vervana ingest agmarknet --state Delhi --max-records 100
-uv run vervana ingest history   # every run shows here, including failures
+uv run vervana registry bootstrap data/raw/agmarknet/snapshot_*.json    # learn official names
+uv run vervana ingest agmarknet-file data/raw/agmarknet/snapshot_*.json  # ingest saved prices
 ```
 
 Upstream supply signals (M11) have their own feeds: Sentinel-2 NDVI and IMD
@@ -97,12 +102,12 @@ derived rollup, preferring the official annual "Total" row and never adding Tota
 seasonal rows together. DES publishes coconut in nuts, not tonnes - coconut is
 labelled "nuts" and never enters tonne totals.
 
-data.gov.in is often slow (a page can take over a minute), so the connector uses a
-120s timeout and retries slow/failed responses a few times before giving up. A failed
-capture saves nothing but is recorded in `ingest history`; just rerun the same
-command — re-ingesting the same rows is safe (duplicates are rejected, not doubled).
-To tune the budget, set `VERVANA_AGMARKNET_TIMEOUT_SECONDS` /
-`VERVANA_AGMARKNET_MAX_RETRIES` in `.env`.
+The Agmarknet 2.0 API (`api.agmarknet.gov.in`) can be slow (a report can take over a
+minute), so the connector uses a 120s timeout and retries slow/failed responses a few
+times before giving up. A failed capture saves nothing but is recorded in `ingest
+history`; just rerun the same command — re-ingesting the same rows is safe (duplicates
+are rejected, not doubled). To tune the budget, set
+`VERVANA_AGMARKNET_TIMEOUT_SECONDS` / `VERVANA_AGMARKNET_MAX_RETRIES` in `.env`.
 
 To run the local database + app together (needs Docker):
 

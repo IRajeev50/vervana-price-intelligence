@@ -28,6 +28,68 @@ _(filled at deploy.)_ Planned shape: provision a new Indian-region VPS → `dock
 up` → restore the latest nightly `pg_dump` from Indian object storage → verify row counts
 against the last `ingest_run`.
 
+## Database persistence (Render + Turso)
+
+**The problem.** The hosted app runs on Render's free tier, whose disk is
+**ephemeral** — it is wiped on every deploy and on container restarts. A SQLite
+file (`vervana.dev.sqlite3`) therefore does **not** survive a redeploy; the hosted
+database has been lost this way repeatedly. The fix is to point production at
+**Turso** (remote libSQL), which lives outside the container.
+
+**How the code chooses the database** (`src/vervana/db/engine.py`): when **both**
+`VERVANA_TURSO_DATABASE_URL` and `VERVANA_TURSO_AUTH_TOKEN` are set, the engine
+builds `sqlite+libsql://<host>?secure=true` and talks to Turso. If only one is
+set it raises (`must be set together`) — fail loud, never silently fall back to a
+disposable local file in production. With neither set it uses local SQLite (dev).
+
+### One-time Turso setup
+```bash
+# Install the Turso CLI, then:
+turso auth login
+turso db create vervana                      # creates a libSQL database
+turso db show vervana --url                   # -> libsql://vervana-<org>.turso.io
+turso db tokens create vervana                # -> the auth token (store securely)
+```
+
+### Set the env vars on Render (the step that ends the data loss)
+In the Render dashboard → the service → **Environment** → add:
+
+| Key | Value |
+| --- | --- |
+| `VERVANA_TURSO_DATABASE_URL` | `libsql://vervana-<org>.turso.io` (from `db show`) |
+| `VERVANA_TURSO_AUTH_TOKEN`   | the token from `db tokens create` |
+
+Save → Render redeploys. These are **secrets**: they live only in Render's
+environment, never in the repo or `.env` committed to git (`.env` is git-ignored;
+`.env.example` lists the keys with empty values).
+
+### First migrate + seed against Turso
+Once the env vars are set (locally export the same two to target Turso from your
+machine, or let the deploy's start command run them):
+```bash
+uv run vervana db upgrade        # creates the schema in Turso
+uv run vervana registry seed     # loads reference commodities/markets
+```
+
+### Verify persistence survives a restart (one command)
+```bash
+# Local sqlite mechanism check (no secrets needed):
+bash scripts/verify_persistence.sh
+
+# Against the real remote database:
+VERVANA_TURSO_DATABASE_URL=libsql://vervana-<org>.turso.io \
+VERVANA_TURSO_AUTH_TOKEN=<token> \
+  bash scripts/verify_persistence.sh
+```
+It migrates + seeds in one process, reopens the **same** database in a **separate**
+process, and passes only if the rows survived. After a Render redeploy, confirm the
+hosted data is intact:
+```bash
+uv run vervana ingest history    # the run log should still show past runs
+```
+If `ingest history` is empty right after a deploy, the Turso env vars are missing
+or mistyped — the app fell back to the ephemeral local file. Re-check the two keys.
+
 ## Daily Agmarknet capture (R5 coverage-over-time)
 
 A macOS **launchd** agent runs the snapshot capture **3×/day at 10:00, 15:00, 20:00 IST**
