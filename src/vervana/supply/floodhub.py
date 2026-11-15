@@ -33,6 +33,12 @@ SOURCE = "Google Flood Hub (riverine flood forecast)"
 _SEVERITY_ORDER = {"NO_FLOODING": 0, "ABOVE_NORMAL": 1, "SEVERE": 2, "EXTREME": 3}
 
 
+def severity_is_risk(severity: str) -> bool:
+    """True when a verified riverine severity rises above normal (ABOVE_NORMAL/SEVERE/
+    EXTREME). UNKNOWN/unspecified is False — never counted as risk, never as "no flooding"."""
+    return _SEVERITY_ORDER.get(severity, 0) >= _SEVERITY_ORDER["ABOVE_NORMAL"]
+
+
 @dataclass(frozen=True)
 class GaugeFloodStatus:
     """One gauge's current riverine flood status - the neutral shape the overlay

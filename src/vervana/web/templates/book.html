@@ -52,6 +52,7 @@
     <div><div class="eyebrow">Uncertainties</div><ul class="tight">{% for u in r.uncertainties %}<li>{{ u }}</li>{% endfor %}</ul></div>
     <div><div class="eyebrow">Invalidated if</div><ul class="tight">{% for i in r.invalidated_if %}<li>{{ i }}</li>{% endfor %}</ul></div>
   </div>
+  {% if r.flood_line %}<p class="muted small"><span aria-hidden="true">≈</span> {{ r.flood_line }}</p>{% endif %}
 </section>
 {% endfor %}
 {% endif %}

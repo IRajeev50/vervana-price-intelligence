@@ -732,6 +732,7 @@ def book_page(request: Request, horizon: int = 14):
                     uncertainties=d.uncertainties,
                     invalidated_if=d.invalidated_if,
                     note=ctx.note,
+                    flood_line=ctx.flood_line,
                 )
             )
     return TEMPLATES.TemplateResponse(
