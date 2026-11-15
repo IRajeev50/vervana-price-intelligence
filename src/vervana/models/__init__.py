@@ -8,6 +8,7 @@ from vervana.models.flood_overlay import FloodOverlayRow
 from vervana.models.forecast_log import ProspectiveForecast
 from vervana.models.ingest import IngestRun
 from vervana.models.intelligence import IntelligenceReportRecord
+from vervana.models.inventory import InventoryLot, LotEvent
 from vervana.models.invoice import Invoice
 from vervana.models.observations import PriceObservation
 from vervana.models.observer import Observer
@@ -31,7 +32,9 @@ __all__ = [
     "Grade",
     "IngestRun",
     "IntelligenceReportRecord",
+    "InventoryLot",
     "Invoice",
+    "LotEvent",
     "Market",
     "Observer",
     "PriceObservation",

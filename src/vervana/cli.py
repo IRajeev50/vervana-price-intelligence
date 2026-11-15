@@ -1463,5 +1463,127 @@ def weather_show() -> None:
             typer.echo(f"{r.locality:18s} {when}  " + ", ".join(parts))
 
 
+book_app = typer.Typer(help="The Book (M17): inventory lots + advisory hold/release decisions.")
+app.add_typer(book_app, name="book")
+
+
+@book_app.command("add-lot")
+def book_add_lot(
+    commodity: str,
+    quantity_kg: float = typer.Option(..., help="Physical quantity in kg."),
+    price: float = typer.Option(..., help="Purchase price actually paid, ₹/kg."),
+    date_bought: str = typer.Option(..., "--date", help="Purchase date YYYY-MM-DD."),
+    warehouse: str = "",
+    market: str = typer.Option("", help="Intended destination market (canonical name)."),
+    lat: float = typer.Option(None, help="Warehouse latitude (for freight estimate)."),
+    lon: float = typer.Option(None, help="Warehouse longitude (for freight estimate)."),
+) -> None:
+    """Record one physical lot and its opening acquisition event."""
+    from datetime import date as _date
+
+    from sqlalchemy import select
+
+    from vervana.db.engine import session_scope
+    from vervana.models.entities import Commodity, Market
+    from vervana.repository.inventory import add_lot
+
+    with session_scope() as session:
+        c = session.scalar(select(Commodity).where(Commodity.canonical_name == commodity))
+        if c is None:
+            typer.echo(f"unknown commodity: {commodity}", err=True)
+            raise typer.Exit(code=1)
+        m_id = None
+        if market:
+            m = session.scalar(select(Market).where(Market.canonical_name == market))
+            if m is None:
+                typer.echo(f"unknown market: {market}", err=True)
+                raise typer.Exit(code=1)
+            m_id = m.id
+        lot = add_lot(
+            session,
+            commodity_id=c.id,
+            quantity_kg=quantity_kg,
+            purchase_price_paise_per_kg=round(price * 100),
+            purchase_date=_date.fromisoformat(date_bought),
+            warehouse=warehouse,
+            warehouse_lat=lat,
+            warehouse_lon=lon,
+            intended_market_id=m_id,
+        )
+        typer.echo(
+            f"lot #{lot.id}: {quantity_kg:g} kg {commodity} @ ₹{price:.2f}/kg "
+            f"bought {date_bought}" + (f", aimed at {market}" if market else "")
+        )
+
+
+@book_app.command("positions")
+def book_positions() -> None:
+    """List every lot with its derived status and remaining quantity."""
+    from vervana.db.engine import session_scope
+    from vervana.models.entities import Commodity
+    from vervana.repository.inventory import current_positions
+
+    with session_scope() as session:
+        positions = current_positions(session)
+        if not positions:
+            typer.echo("the book is empty — add a lot with: vervana book add-lot")
+            return
+        for p in positions:
+            c = session.get(Commodity, p.lot.commodity_id)
+            cname = c.canonical_name if c else f"commodity#{p.lot.commodity_id}"
+            typer.echo(
+                f"#{p.lot.id:<4} {cname:14s} {p.remaining_kg:g}/{float(p.lot.quantity_kg):g} kg "
+                f"@ ₹{p.lot.purchase_price_paise_per_kg / 100:.2f}/kg  [{p.status}] "
+                f"{p.lot.warehouse}"
+            )
+
+
+@book_app.command("decide")
+def book_decide(lot_id: int, horizon: int = typer.Option(14, help="Hold horizon in days.")) -> None:
+    """Advisory HOLD/RELEASE/WAIT/REROUTE for one lot, with evidence and assumptions."""
+    from vervana.book.service import decide_for_lot
+    from vervana.db.engine import session_scope
+    from vervana.repository.inventory import get_lot
+
+    with session_scope() as session:
+        lot = get_lot(session, lot_id)
+        if lot is None:
+            typer.echo(f"no lot #{lot_id}", err=True)
+            raise typer.Exit(code=1)
+        ctx = decide_for_lot(session, lot, horizon_days=horizon)
+        d = ctx.decision
+        typer.echo(f"lot #{lot_id}: {ctx.commodity}" + (f" @ {ctx.market}" if ctx.market else ""))
+        if ctx.note:
+            typer.echo(f"  {ctx.note}")
+        typer.echo(f"  VERDICT: {d.verdict}")
+        typer.echo(f"  why: {d.why}")
+        for label, items in (
+            ("evidence", d.evidence),
+            ("assumptions", d.assumptions),
+            ("uncertainties", d.uncertainties),
+            ("invalidated if", d.invalidated_if),
+        ):
+            for it in items:
+                typer.echo(f"  {label}: {it}")
+        typer.echo("  (advisory only — nothing is executed.)")
+
+
+@book_app.command("costs")
+def book_costs(commodity: str = typer.Argument("")) -> None:
+    """Print the carrying-cost assumptions (all rates visible, from book_costs.csv)."""
+    from vervana.book.costs import COSTS_PATH, load_cost_rates
+
+    if commodity:
+        r = load_cost_rates(commodity)
+        typer.echo(
+            f"{commodity} (rates from '{r.key}'): "
+            f"storage {r.storage_paise_per_kg_per_day}p/kg/day, "
+            f"financing {r.financing_annual_pct:.0%}/yr, spoilage {r.spoilage_pct_per_day:g}%/day"
+        )
+        return
+    typer.echo(f"carrying-cost assumptions ({COSTS_PATH.name}):")
+    typer.echo(COSTS_PATH.read_text(encoding="utf-8").rstrip())
+
+
 if __name__ == "__main__":  # pragma: no cover
     app()

@@ -1,0 +1,10 @@
+commodity,storage_paise_per_kg_per_day,financing_annual_pct,spoilage_pct_per_day
+__default__,5,0.12,0.5
+Onion,4,0.12,0.3
+Potato,4,0.12,0.25
+Tomato,8,0.12,2.0
+Capsicum,8,0.12,1.5
+Apple,6,0.12,0.4
+Mango,10,0.12,2.5
+Wheat,2,0.12,0.02
+Rice,2,0.12,0.02

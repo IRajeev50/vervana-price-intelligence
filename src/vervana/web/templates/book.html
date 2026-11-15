@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}The Book{% endblock %}
+{% block body %}
+<header class="page-head">
+  <div class="page-head__kicker">Commercial · inventory</div>
+  <h1>The Book — hold / release intelligence</h1>
+  <p class="page-head__sub">Each lot you hold, with an <strong>advisory</strong> verdict on holding vs selling
+    now: expected net realisation minus the carrying cost, every recommendation showing its evidence,
+    assumptions, and what would invalidate it. Nothing here is executed.</p>
+</header>
+
+<div class="callout callout--warn">
+  <span class="callout__ico" aria-hidden="true">⚠</span>
+  <div class="callout__body">
+    <strong>Advisory only, and honest about what it doesn't know.</strong> Where a commodity's price band has
+    not cleared the kill bar (today, all of them), the expected sale price falls back to
+    <strong>today's price held flat</strong> and the verdict is gated to <strong>WAIT</strong> — the Book never
+    issues a confident HOLD/RELEASE off an unvalidated forward price. Carrying-cost rates are visible
+    assumptions <span class="mono">(RISK[R16]/R17)</span>; freight reuses the sourcing estimate
+    <span class="mono">(R15)</span>. Destination flood exposure lands in M19.
+  </div>
+</div>
+
+<form class="filters" method="get" aria-label="Book controls">
+  <div class="field">
+    <label for="horizon">Hold horizon (days)</label>
+    <input class="input" id="horizon" name="horizon" type="number" min="1" max="120" value="{{ horizon }}">
+  </div>
+  <button class="btn" type="submit">Recompute</button>
+</form>
+
+{% if not rows %}
+<div class="empty"><span class="empty__ico" aria-hidden="true">◌</span>
+  <div class="empty__title">The book is empty</div>
+  <div class="empty__hint">Add a lot: <code>uv run vervana book add-lot &lt;commodity&gt; --quantity-kg N --price ₹ --date YYYY-MM-DD --market &lt;mandi&gt;</code></div>
+</div>
+{% else %}
+{% for r in rows %}
+<section class="panel" aria-labelledby="lot-{{ r.lot_id }}">
+  <div class="panel__head">
+    <div>
+      <h2 id="lot-{{ r.lot_id }}">#{{ r.lot_id }} · {{ r.commodity }}{% if r.market %} → {{ r.market }}{% endif %}</h2>
+      <p class="muted small">{{ '%g'|format(r.remaining_kg) }} / {{ '%g'|format(r.quantity_kg) }} kg
+        @ ₹{{ '%.2f'|format(r.purchase_rupees) }}/kg · {{ r.warehouse or 'warehouse unset' }} · status {{ r.status }}</p>
+    </div>
+    <span class="spread-chip {{ 'spread-chip--high' if r.verdict == 'RELEASE' else ('spread-chip--medium' if r.verdict == 'REROUTE' else ('spread-chip--low' if r.verdict == 'HOLD' else 'spread-chip--na')) }}">{{ r.verdict }}</span>
+  </div>
+  <p><strong>{{ r.why }}</strong></p>
+  <div class="method-grid">
+    <div><div class="eyebrow">Evidence</div><ul class="tight">{% for e in r.evidence %}<li>{{ e }}</li>{% endfor %}</ul></div>
+    <div><div class="eyebrow">Assumptions</div><ul class="tight">{% for a in r.assumptions %}<li>{{ a }}</li>{% endfor %}</ul></div>
+    <div><div class="eyebrow">Uncertainties</div><ul class="tight">{% for u in r.uncertainties %}<li>{{ u }}</li>{% endfor %}</ul></div>
+    <div><div class="eyebrow">Invalidated if</div><ul class="tight">{% for i in r.invalidated_if %}<li>{{ i }}</li>{% endfor %}</ul></div>
+  </div>
+</section>
+{% endfor %}
+{% endif %}
+<p class="muted small">Not trading advice. Inventory and costs are the operator's own figures; prices are
+  Agmarknet executed_summary (never blended with retail). Every recommendation is advisory — the Book never
+  places an order or moves stock.</p>
+{% endblock %}

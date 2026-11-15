@@ -2,7 +2,12 @@
 
 > **Generated file — do not hand-edit.** Produced by `scripts/gen_risk_register.py` (run via `make risks`) from `scripts/risks_seed.yaml` (definitions) and a grep of the codebase for `RISK[<ID>]:` tags (live occurrences). Edit the seed or the code, then regenerate.
 
-**Summary:** 13 risks declared · 13 have live code tags · 0 not yet reached in code · 14 tag occurrences total.
+**Summary:** 15 risks declared · 16 have live code tags · 0 not yet reached in code · 18 tag occurrences total.
+
+## ⚠️ Drift warnings
+
+- code tag RISK[R15-FREIGHT-ASSUMPTION] at src/vervana/book/costs.py:16 is not declared in risks_seed.yaml
+- code tag RISK[R15-FREIGHT-ASSUMPTION] at src/vervana/config.py:77 is not declared in risks_seed.yaml
 
 ## 1. Declared risks (definitions)
 
@@ -21,24 +26,30 @@
 | `R11-RECORDER-CONFLICT` | Commission agents can be paid to report prices reliably. | 1 | PENDING |
 | `R12-RECORDER-ECONOMICS` | The platform scales like software. | 1 | PENDING |
 | `R13-RANGE-MIDPOINT` | The midpoint of a quoted range is the representative price for modelling and deviation. | 1 | PENDING |
+| `R16-CARRY-ASSUMPTION` | A single flat storage rate (₹/kg/day) and financing rate (annual %) represent a lot's carrying cost. | 1 | (no Verdict: line found) |
+| `R17-SPOILAGE-ASSUMPTION` | A flat %/day spoilage rate per commodity represents quality loss over a hold. | 1 | (no Verdict: line found) |
 
 ## 2. Live code tags (grepped from source)
 
 | ID | Location | Summary | Verdict |
 |---|---|---|---|
-| `R1-INFO-CHANGES-BEHAVIOUR` | `src/vervana/digest.py:195` | This digest assumes that showing a buyer the | PENDING |
+| `R1-INFO-CHANGES-BEHAVIOUR` | `src/vervana/digest.py:229` | This digest assumes that showing a buyer the | PENDING |
 | `R10-QCOMM-SOURCING` | `src/vervana/connectors/quickcommerce.py:51` | A "vendor feed" of quick-commerce prices is not a | PENDING |
 | `R11-RECORDER-CONFLICT` | `src/vervana/models/observer.py:23` | A paid recorder who holds positions in the commodities | PENDING |
 | `R12-RECORDER-ECONOMICS` | `src/vervana/economics.py:44` | The platform is assumed to scale like software, but | PENDING |
 | `R13-RANGE-MIDPOINT` | `src/vervana/forecast/series.py:26` | The modelled series uses `canonical_price_paise_per_kg`, | PENDING |
+| `R15-FREIGHT-ASSUMPTION` | `src/vervana/book/costs.py:16` | outbound logistics reuses the sourcing freight estimate | (no Verdict: line found) |
+| `R15-FREIGHT-ASSUMPTION` | `src/vervana/config.py:77` | road-freight rate used to estimate delivered | PENDING |
+| `R16-CARRY-ASSUMPTION` | `src/vervana/book/costs.py:8` | storage (₹/kg/day) and financing (annual %) are single flat | (no Verdict: line found) |
+| `R17-SPOILAGE-ASSUMPTION` | `src/vervana/book/costs.py:12` | quality loss uses a flat %/day spoilage rate per commodity. | (no Verdict: line found) |
 | `R2-BEACHHEAD` | `src/vervana/digest.py:28` | This digest is deliberately shaped for HoReCa buyers, not mandi | RESOLVED — persona set to HoReCa + quick-commerce (2026-09-10, founder). |
-| `R3-VIDEO-PROVENANCE` | `src/vervana/connectors/transcript.py:98` | These are YouTube-quoted ranges treated as prices. | PENDING |
+| `R3-VIDEO-PROVENANCE` | `src/vervana/connectors/transcript.py:219` | These are YouTube-quoted ranges treated as prices. | PENDING |
 | `R4-WEAK-GROUND-TRUTH` | `src/vervana/analytics/groundtruth.py:181` | The reference MUST be trader invoices, never Agmarknet — | PENDING — no trader invoices supplied yet. |
-| `R4-WEAK-GROUND-TRUTH` | `src/vervana/connectors/agmarknet.py:235` | We record Agmarknet as `executed_summary` — a | PENDING |
+| `R4-WEAK-GROUND-TRUTH` | `src/vervana/connectors/agmarknet.py:515` | We record Agmarknet as `executed_summary` — a | PENDING |
 | `R5-COVERAGE-EDGE` | `src/vervana/analytics/coverage.py:69` | The entire product edge assumes Agmarknet's Delhi coverage | PENDING — PRELIMINARY LIVE 2026-09-10 09:30 IST: the national daily snapshot |
 | `R6-MOAT-MODEL-GAP` | `src/vervana/forecast/models.py:64` | The corpus is pitched as the moat, yet the model trains on | PENDING — video-feature contribution = 0% (no video features exist yet) |
 | `R7-FORECAST-BAR` | `src/vervana/forecast/models.py:56` | This assumes gradient boosting can beat the naive baselines on | PENDING (no real multi-day history captured yet; see M4-done) |
-| `R8-YOUTUBE-TOS` | `src/vervana/connectors/transcript.py:58` | This corpus is YouTube-derived. It cannot be both a legal | PENDING — legal opinion not yet confirmed; treated as manual import only. |
+| `R8-YOUTUBE-TOS` | `src/vervana/connectors/transcript.py:109` | This corpus is YouTube-derived. It cannot be both a legal | PENDING — legal opinion not yet confirmed; treated as manual import only. |
 | `R9-NOT-IP` | `src/vervana/models/entities.py:26` | This registry is treated as proprietary IP. Under Eastern Book | PENDING |
 
 ## 3. Evidence against each assumption
@@ -76,8 +87,6 @@
 
 ### `R7-FORECAST-BAR`
 
-**M14 band update:** the quantile price band (p10/p50/p90) is held to the same bar — it ships per commodity only if its p50 beats the anchor AND seasonal_naive on MAE and WAPE with coverage in [75%,88%] (`forecast/kill.py::evaluate_band_kill`). On the current store 0/45 commodities cleared it — serving the labelled baseline band everywhere (data/backtests/band_latest.json). Still PENDING; the band inherits this risk.
-
 - **Assumption:** Gradient boosting beats naive baselines on next-day F&V prices.
 - **Evidence against it:** Daily fresh-produce prices are close to a random walk with weather shocks. With ~90 observations per series there is not enough history for tree models to generalise per-series, and none for deep learning. Baselines must always be computed and reported.
 
@@ -110,4 +119,14 @@
 
 - **Assumption:** The midpoint of a quoted range is the representative price for modelling and deviation.
 - **Evidence against it:** The data model deliberately refuses to collapse ranges at write time (price_low/price_high primary). But forecasting needs a scalar series and §5.2 computes deviation on the range midpoint, so "midpoint = the price" is an unavoidable modelling-layer assumption. Skew, thin tails, and quote-vs-trade spread all violate it. Raised by the lead engineer; not in the original 12.
+
+### `R16-CARRY-ASSUMPTION`
+
+- **Assumption:** A single flat storage rate (₹/kg/day) and financing rate (annual %) represent a lot's carrying cost.
+- **Evidence against it:** The Book (M17) computes carrying cost from per-commodity flat rates in data/config/book_costs.csv. Real carrying cost varies by store, lot size, and finance line. Shown as an estimate with the rate visible, never a quoted cost; every HOLD/RELEASE rests on it. Tune in the CSV. Introduced with Module F.
+
+### `R17-SPOILAGE-ASSUMPTION`
+
+- **Assumption:** A flat %/day spoilage rate per commodity represents quality loss over a hold.
+- **Evidence against it:** The Book (M17) values quality loss as spoilage_pct_per_day × days × the expected sale value. Real deterioration is non-linear and depends on grade, store, and weather. An estimate, never a measured loss; it feeds the net-realisation figure. Introduced with Module F.
 
