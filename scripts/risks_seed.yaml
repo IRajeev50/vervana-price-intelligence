@@ -109,3 +109,17 @@ risks:
       §5.2 computes deviation on the range midpoint, so "midpoint = the price" is an
       unavoidable modelling-layer assumption. Skew, thin tails, and quote-vs-trade
       spread all violate it. Raised by the lead engineer; not in the original 12.
+  - id: R16-CARRY-ASSUMPTION
+    assumption: A single flat storage rate (₹/kg/day) and financing rate (annual %) represent a lot's carrying cost.
+    evidence: >-
+      The Book (M17) computes carrying cost from per-commodity flat rates in
+      data/config/book_costs.csv. Real carrying cost varies by store, lot size, and
+      finance line. Shown as an estimate with the rate visible, never a quoted cost;
+      every HOLD/RELEASE rests on it. Tune in the CSV. Introduced with Module F.
+  - id: R17-SPOILAGE-ASSUMPTION
+    assumption: A flat %/day spoilage rate per commodity represents quality loss over a hold.
+    evidence: >-
+      The Book (M17) values quality loss as spoilage_pct_per_day × days × the expected
+      sale value. Real deterioration is non-linear and depends on grade, store, and
+      weather. An estimate, never a measured loss; it feeds the net-realisation figure.
+      Introduced with Module F.

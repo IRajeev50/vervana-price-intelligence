@@ -703,6 +703,42 @@ async def sourcing_register_submit(request: Request):
     return RedirectResponse(f"/sourcing/register?ok={quote(msg)}", status_code=303)
 
 
+@app.get("/book", response_class=HTMLResponse)
+def book_page(request: Request, horizon: int = 14):
+    """The Book (M17): inventory positions + advisory hold/release decisions."""
+    from vervana.book.service import decide_for_lot
+    from vervana.repository.inventory import current_positions
+
+    rows = []
+    with session_scope() as s:
+        for pos in current_positions(s):
+            commodity = s.get(Commodity, pos.lot.commodity_id)
+            ctx = decide_for_lot(s, pos.lot, horizon_days=horizon)
+            d = ctx.decision
+            rows.append(
+                _NS(
+                    lot_id=pos.lot.id,
+                    commodity=commodity.canonical_name if commodity else "?",
+                    market=ctx.market,
+                    status=pos.status,
+                    remaining_kg=pos.remaining_kg,
+                    quantity_kg=float(pos.lot.quantity_kg),
+                    purchase_rupees=pos.lot.purchase_price_paise_per_kg / 100,
+                    warehouse=pos.lot.warehouse,
+                    verdict=d.verdict,
+                    why=d.why,
+                    evidence=d.evidence,
+                    assumptions=d.assumptions,
+                    uncertainties=d.uncertainties,
+                    invalidated_if=d.invalidated_if,
+                    note=ctx.note,
+                )
+            )
+    return TEMPLATES.TemplateResponse(
+        request, "book.html", _ctx(request, rows=rows, horizon=horizon)
+    )
+
+
 @app.get("/forecast", response_class=HTMLResponse)
 def forecast_page(request: Request):
     from vervana.forecast import load_decision
