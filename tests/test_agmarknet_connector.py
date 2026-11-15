@@ -278,6 +278,7 @@ def test_fetch_retries_read_timeout_then_succeeds(monkeypatch):
             "min_price": "2000.0",
             "max_price": "4500.0",
             "modal_price": "3281.0",
+            "arrivals": "861.0",  # arrivals capture change: co-reported metric tonnes
         }
     ]
 

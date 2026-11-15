@@ -54,6 +54,11 @@ class PriceObservation(Base):
     unit_kg_equivalent: Mapped[float | None] = mapped_column(Numeric(12, 4), default=None)
     unit_conversion_confidence: Mapped[float | None] = mapped_column(Numeric(4, 3), default=None)
 
+    # Market arrivals (metric tonnes) co-reported by Agmarknet in the same daily row.
+    # NULL when the source did not state it (never a guessed zero — "no data" ≠ "no arrivals").
+    # Captured going forward; it unblocks the `arrivals` feature group (forecast/features.py).
+    arrivals_tonnes: Mapped[float | None] = mapped_column(Numeric(14, 3), default=None)
+
     # Provenance — a row that cannot be traced to evidence must fail insertion.
     source_url: Mapped[str] = mapped_column(String(500))
     raw_quote: Mapped[str] = mapped_column(Text)
