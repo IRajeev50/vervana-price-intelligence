@@ -12,10 +12,42 @@ links back to the evidence it came from.
 
 ## Status
 
-**Early build.** Foundations milestone (M0). No data collection is running yet. The
-YouTube transcript source is **on hold pending a legal opinion** and is deliberately not
-built. See [`docs/BUILD_PROMPT.md`](docs/BUILD_PROMPT.md) for the full plan and
-[`docs/milestones/`](docs/milestones/) for milestone-by-milestone progress.
+**Active build, data flowing.** The platform captures national Agmarknet prices, resolves
+the messy naming of Indian commodities, and serves fully-traceable prices, forecasts, and
+advisory intelligence. The YouTube transcript source remains **on hold pending a legal
+opinion** and is deliberately not built. See [`docs/BUILD_PROMPT.md`](docs/BUILD_PROMPT.md)
+for the full plan and [`docs/milestones/`](docs/milestones/) for milestone-by-milestone
+progress.
+
+Two honesty guardrails shape what "done" means here:
+
+- **Nothing ships off a price-edge it hasn't earned.** A forecast band must beat an
+  anchor + seasonal-naive baseline on a per-commodity walk-forward backtest — the *kill
+  gate*. Today **0 of 45** commodities clear it, so every forward price is a labelled
+  baseline and [The Book](docs/milestones/M17-done.md) stays advisory. That is the honest
+  state, not a bug.
+- **Partner feeds that aren't granted fetch nothing and fake nothing.** WeatherNext and
+  Flood Hub are built up to the access boundary and wait there; absence of data is shown
+  as "access pending", never as "no risk".
+
+### Milestones
+
+| Milestone | What it adds | State |
+|---|---|---|
+| M0–M12 | Foundations: capture, registry, coverage, entity matching, intelligence chain, crop production, forecast band + kill gate | operational |
+| [M13](docs/milestones/M13-done.md) · WeatherNext seam | forward weather feed (BigQuery percentiles) | scaffold — access pending |
+| [M15](docs/milestones/M15-done.md) · Flood Hub seam | riverine flood risk overlay (origin belts) | scaffold — access pending |
+| [M16](docs/milestones/M16-audit.md) · Audit | full-repo gap analysis | done |
+| [M17](docs/milestones/M17-done.md) · The Book | inventory lots + carrying cost + HOLD/RELEASE/WAIT/REROUTE | operational (advisory) |
+| [M18](docs/milestones/M18-done.md) · Capsicum & Onion | evidence-cited sourcing belts + market coords (REROUTE live) | operational |
+| [M19a](docs/milestones/M19-done.md) · Flood destination flag | Book riverine flood-driven REROUTE (access-free slice) | operational |
+| [Arrivals capture](docs/milestones/arrivals-capture-done.md) | store mandi arrivals (tonnes) going forward | operational |
+| [M20a](docs/milestones/M20a-done.md) · Weather belt→mandi link | dormant weather-feature builder (access-free slice) | operational |
+| [M19b](docs/milestones/M19-plan.md) · Flood Hub go-live | live gauge pull | **blocked on access** (API key) |
+| [M20b](docs/milestones/M20-plan.md) · WeatherNext go-live | live BigQuery pull + kill-gate re-run | **blocked on access** (GCP credentials) |
+
+The two go-lives (M19b, M20b) need operator-supplied credentials and nothing else; each
+`*-plan.md` says exactly what to provide.
 
 ## How to run it (for developers)
 
@@ -134,7 +166,7 @@ make down               # stop them
 - [`docs/RUNNING_COSTS.md`](docs/RUNNING_COSTS.md) — what it costs to run, kept honest.
 - [`docs/OPEN_QUESTIONS.md`](docs/OPEN_QUESTIONS.md) — things not yet settled.
 - [`docs/INTELLIGENCE.md`](docs/INTELLIGENCE.md) — the M9 upstream-signal intelligence layer: reasoning chain, honesty rules, honest horizons, sugar worked example.
-- [`docs/SUPPLY.md`](docs/SUPPLY.md) — the M11 supply-side layer: Sentinel-2 NDVI + IMD rainfall feeds (live), and the Google ALU/AMED connector seam (scaffold, partner access pending).
+- [`docs/SUPPLY.md`](docs/SUPPLY.md) — the supply-side layer: Sentinel-2 NDVI + IMD rainfall feeds (live), the Google ALU/AMED/WeatherNext/Flood Hub seams (scaffold, access pending), the evidence-cited sourcing belts + belt→mandi weather links (M18/M20a), and the riverine flood destination flag (M19a).
 - [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — what to do when something breaks.
 
 ## Licensing & attribution (applies once Agmarknet data is displayed)
