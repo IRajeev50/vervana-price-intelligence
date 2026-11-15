@@ -985,6 +985,32 @@ def supply_floodhub_record(
     typer.echo("riverine-only; a tail-risk overlay, never a price/band feature.")
 
 
+@supply_app.command("weather-links")
+def supply_weather_links() -> None:
+    """Show the belt→mandi weather links (M20a, W3) and forecast coverage per belt.
+
+    Read-only. Which (commodity, mandi) price series each origin belt's weather informs, and
+    how many WeatherNext forecast rows are stored for it (0 until access lands — honest, not
+    'no weather'). The feature itself is dormant until M20b (see forecast/weather_features).
+    """
+    from vervana.db.engine import session_scope
+    from vervana.repository.weather_forecast import latest_run_for_zone
+    from vervana.supply.zones import load_zones
+
+    linked = [z for z in load_zones() if z.mandis]
+    if not linked:
+        typer.echo("no belt→mandi links configured (data/config/supply_zones.csv).")
+        return
+    with session_scope() as session:
+        for z in linked:
+            rows = latest_run_for_zone(session, z.zone)
+            cov = f"{len(rows)} forecast day(s)" if rows else "no forecast (access pending)"
+            typer.echo(
+                f"{z.zone} [{';'.join(z.commodities)}] → {';'.join(z.mandis)}  ({cov})"
+            )
+    typer.echo("weather feature is DORMANT until M20b (live pull + kill backtest).")
+
+
 @supply_app.command("alu")
 def supply_alu() -> None:
     """Google ALU seam status (SCAFFOLD - partner access pending)."""

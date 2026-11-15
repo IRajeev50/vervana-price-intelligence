@@ -7,8 +7,12 @@ model uses, exposed here as a reusable matrix the quantile band can share.
 
 TWO feature groups are deliberately WIRED BUT EMPTY, so the band can be
 backtested with and without them the day they exist - never faked before:
-  * `weather`  - origin-belt rain percentiles / heat days from WeatherNext
-    (Phase 1 feed; access pending, so zero columns now);
+  * `weather`  - origin-belt rain percentiles / heat days from WeatherNext. M20a
+    built the belt→mandi link (supply_zones.mandis) and a DORMANT, fixture-tested
+    feature builder (forecast/weather_features.py) that reduces a series' linked
+    belts' forecast rows to a supply-stress feature. It stays off the band here
+    until M20b: live BigQuery access, the confirmed column mapping, and a
+    walk-forward backtest that proves it beats the anchor + seasonal baseline;
   * `arrivals` - Agmarknet market arrivals. M14 HONEST FINDING: arrivals were NOT
     stored (no column; `raw_quote` carried only arrival_DATE). The ARRIVALS CAPTURE
     CHANGE closed that: `PriceObservation.arrivals_tonnes` now captures the metric-
