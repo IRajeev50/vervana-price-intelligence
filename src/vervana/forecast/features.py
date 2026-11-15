@@ -9,11 +9,14 @@ TWO feature groups are deliberately WIRED BUT EMPTY, so the band can be
 backtested with and without them the day they exist - never faked before:
   * `weather`  - origin-belt rain percentiles / heat days from WeatherNext
     (Phase 1 feed; access pending, so zero columns now);
-  * `arrivals` - Agmarknet market arrivals. HONEST FINDING (M14): arrivals are
-    NOT stored. PriceObservation has no arrivals column and the archived
-    `raw_quote` carries only arrival_DATE, not the arrivals quantity - so the
-    arrival-shock feature cannot be built from existing data. It needs a capture
-    change (store arrivals going forward); documented in M14-done.md, not faked.
+  * `arrivals` - Agmarknet market arrivals. M14 HONEST FINDING: arrivals were NOT
+    stored (no column; `raw_quote` carried only arrival_DATE). The ARRIVALS CAPTURE
+    CHANGE closed that: `PriceObservation.arrivals_tonnes` now captures the metric-
+    tonne figure Agmarknet co-reports, read via `repository.prices.arrivals_series`.
+    The feature group stays EMPTY here until enough captured history exists AND the
+    band is made multivariate in M20's backtest - capture is going-forward only, so
+    historical rows are NULL and an arrival-shock feature still can't be built today.
+    Still never faked: an empty column beats an invented one.
 """
 
 from __future__ import annotations

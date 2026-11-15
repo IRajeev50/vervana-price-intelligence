@@ -119,6 +119,43 @@ def insert_observation(session: Session, **kwargs) -> PriceObservation:
     return obs
 
 
+def arrivals_series(
+    session: Session, *, commodity_id: int, market_id: int
+) -> list[tuple[date, float]]:
+    """(observed_day, arrivals_tonnes) oldest->newest for a commodity-market, executed
+    summaries only, skipping rows where arrivals were not reported (NULL, never a zero).
+
+    This is what the `arrivals` feature group (forecast/features.py) will read once enough
+    captured history exists; today it is the honest, queryable record of what has been
+    captured going forward.
+    """
+    rows = session.execute(
+        select(PriceObservation.observed_at, PriceObservation.arrivals_tonnes)
+        .where(
+            PriceObservation.commodity_id == commodity_id,
+            PriceObservation.market_id == market_id,
+            PriceObservation.source_class == SourceClass.executed_summary,
+            PriceObservation.arrivals_tonnes.is_not(None),
+        )
+        .order_by(PriceObservation.observed_at.asc(), PriceObservation.id.asc())
+    ).all()
+    return [(dt.astimezone(IST).date(), float(t)) for dt, t in rows]
+
+
+def arrivals_coverage(session: Session) -> int:
+    """How many stored observations carry a captured arrivals figure (quick health read)."""
+    from sqlalchemy import func
+
+    return int(
+        session.scalar(
+            select(func.count(PriceObservation.id)).where(
+                PriceObservation.arrivals_tonnes.is_not(None)
+            )
+        )
+        or 0
+    )
+
+
 def supersede(session: Session, old_id: int, *, reason: str, **new_kwargs) -> PriceObservation:
     """Append-only correction: insert a NEW row that supersedes `old_id`.
 

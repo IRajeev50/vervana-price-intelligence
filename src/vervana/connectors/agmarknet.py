@@ -71,6 +71,7 @@ SOURCE_URL = DAILY_STATE_REPORT_URL
 
 DEFAULT_MAX_RECORDS = 1000  # default flattened-record cap per ingest run
 PRICE_UNIT_EXPECTED = "Rs./Quintal"
+ARRIVALS_UNIT_EXPECTED = "Metric Tonnes"
 
 # The 2.0 endpoints expect the portal's browser headers; without them the edge
 # answers 403 even though no login or captcha is involved.
@@ -162,6 +163,9 @@ FIELD_CANDIDATES: dict[str, tuple[str, ...]] = {
     "min_price": ("min_price", "min price (rs./quintal)", "min_x0020_price"),
     "max_price": ("max_price", "max price (rs./quintal)", "max_x0020_price"),
     "modal_price": ("modal_price", "modal price (rs./quintal)", "modal_x0020_price"),
+    # Arrivals (metric tonnes) — OPTIONAL: present in the daily report, absent in older
+    # flat snapshots. Never required; a missing value maps to NULL, not zero.
+    "arrivals": ("arrivals", "arrivals (tonnes)", "arrivals_tonnes", "total_arrivals"),
 }
 REQUIRED = ("market", "commodity", "arrival_date", "min_price", "max_price", "modal_price")
 _DATE_FORMATS = ("%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y", "%d/%m/%y")
@@ -220,6 +224,22 @@ def _price_paise(value: Any) -> int | None:
     except Exception:
         return None
     return paise or None
+
+
+def _arrivals_tonnes(value: Any) -> float | None:
+    """Arrivals in metric tonnes -> non-negative float, or None if blank/unparseable.
+
+    None means "not reported", never a guessed zero — a genuine 0.0 is a real reading and is
+    kept. A negative or garbage value is dropped (None), never stored as precision we lack.
+    """
+    s = str(value).strip().replace(",", "")
+    if s in ("", "NA", "-", "N/A", "null", "None"):
+        return None
+    try:
+        t = float(s)
+    except (TypeError, ValueError):
+        return None
+    return t if t >= 0 else None
 
 
 def _translate(name: Any, mapping: dict[str, str]) -> str:
@@ -355,6 +375,17 @@ class AgmarknetConnector(Connector):
                                 unit=unit, commodity=commodity, market=market,
                             )
                             continue
+                        # Arrivals are co-reported in metric tonnes. Capture only when the
+                        # unit is as expected; an unexpected unit drops the arrivals value
+                        # (to NULL) but never the price row.
+                        a_unit = str(row.get("unitOfArrivals") or "").strip()
+                        arrivals = row.get("arrivals")
+                        if a_unit and a_unit.lower() != ARRIVALS_UNIT_EXPECTED.lower():
+                            log.warning(
+                                "agmarknet_unexpected_arrivals_unit",
+                                unit=a_unit, commodity=commodity, market=market,
+                            )
+                            arrivals = None
                         records.append(
                             {
                                 "state": state_label,
@@ -367,6 +398,7 @@ class AgmarknetConnector(Connector):
                                 "min_price": _num_str(row.get("minimumPrice")),
                                 "max_price": _num_str(row.get("maximumPrice")),
                                 "modal_price": _num_str(row.get("modalPrice")),
+                                "arrivals": _num_str(arrivals),
                             }
                         )
         return records
@@ -475,6 +507,7 @@ class AgmarknetConnector(Connector):
                 modal = None
 
             observed_at = _parse_date(fields["arrival_date"])
+            arrivals_tonnes = _arrivals_tonnes(fields.get("arrivals"))
 
             # Never double-count: an identical row already stored (same commodity, market,
             # day, prices, source class) is a duplicate, not a new observation. This makes
@@ -536,6 +569,7 @@ class AgmarknetConnector(Connector):
                         canonical_price_paise_per_kg=canonical,
                         unit_kg_equivalent=kg_eq,
                         unit_conversion_confidence=conf,
+                        arrivals_tonnes=arrivals_tonnes,
                         source_url=SOURCE_URL,
                         raw_quote=json.dumps(record, ensure_ascii=False),
                         observed_at=observed_at,
