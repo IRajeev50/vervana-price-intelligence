@@ -5,6 +5,6 @@ Rice,4,6,16,90,150,Punjab;West Bengal;Uttar Pradesh,Kharif crop; buffer stocks e
 Onion,3,4,20,60,90,Maharashtra;Karnataka;Madhya Pradesh,Stored rabi onion buffers shocks for months; cold-storage and release policy matter
 Potato,3,4,16,60,90,Uttar Pradesh;West Bengal;Bihar,Cold-storage occupancy is a leading supply signal
 Tomato,1,2,0,28,56,Maharashtra;Karnataka;Himachal Pradesh,"Perishable; honest horizon is weeks, not months"
-Capsicum,1,2,0,28,56,Karnataka;Maharashtra;Himachal Pradesh,"Perishable; honest horizon is weeks, not months"
+Capsicum,1,2,0,28,56,Karnataka;Himachal Pradesh;Maharashtra,"Perishable; honest horizon is weeks, not months. Karnataka leads on protected cultivation; Himachal (Kullu valley) is the seasonal summer/rainy supplier to the plains (M18, NHB/CEIC)"
 Cauliflower,1,2,0,28,56,Himachal Pradesh;Uttar Pradesh;Bihar,"Perishable; honest horizon is weeks, not months"
 Green Chilli,1,2,0,28,56,Andhra Pradesh;Karnataka;Maharashtra,"Perishable; honest horizon is weeks, not months"

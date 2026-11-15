@@ -174,3 +174,49 @@ Boundaries, enforced in code:
   never mistaken for safety.
 - Stored append-only in `flood_overlay` (its own table; a flood flag is neither a
   price nor a forecast feature), idempotent on (zone, issued_time).
+
+## M18 — Capsicum & Onion belt validation (evidence-cited)
+
+The master brief's one rule for the first live experiments: *verify actual sourcing
+belts first — don't assume Nashik/Pune weightings.* M18 did that for Onion and
+Capsicum, from two sources in combination:
+
+1. **Agmarknet coverage** (what our own store already holds) — which mandis report
+   each commodity, by state. This is **consumption-skewed** (Tamil Nadu tops the raw
+   report counts because it has many reporting mandis), so coverage alone is NOT a
+   production belt. It is used only to confirm a belt is observable in our data.
+2. **Authoritative production statistics, cited** — NHB monthly/horticulture
+   estimates and CEIC's compilation of them.
+
+**No belt carries an invented volume weight.** Mandi *arrivals quantity* is not stored
+(the capture-change gap), so belt *shares* cannot be computed from our data and are not
+claimed. Belts are recorded as present/evidenced, with provenance, not weighted.
+
+### Belts added (config, not code — `data/config/supply_zones.csv`)
+
+| Zone | District / State | Commodity | Evidence |
+|---|---|---|---|
+| `gadag-onion` | Gadag, Karnataka | Onion | Karnataka ~13–15% of national onion (NHB); fills the belt the Onion profile already claimed but had no zone for |
+| `kullu-capsicum` | Kullu, Himachal Pradesh | Capsicum | HP = seasonal summer/rainy bell-pepper supplier to the plains; Kullu valley dominates our Capsicum coverage (Bhuntar, Kullu, Nagrota, Rohroo) |
+| `kolar-capsicum` | Kolar, Karnataka | Capsicum | Karnataka leads on protected-cultivation capsicum (NHB/CEIC) |
+
+Onion kept its existing `nashik-onion` + `indore-onion` zones (Maharashtra ~42%, MP
+~15%). Capsicum had **no zone at all** before M18.
+
+### Market coordinates (config — `data/config/market_coords.csv`)
+
+16 belt + destination mandis were given **district-HQ / town-point coordinate
+approximations**, each with a `source`. These are deliberate approximations (same
+convention as the zones above), not surveyed points. They activate the Book's (M17)
+outbound-freight and REROUTE estimates: a market without coordinates stays honestly
+"distance unknown", never a guessed zero. Apply with `vervana registry market-coords`
+(idempotent). The coordinate approximation **compounds the R15 freight-rate assumption**
+— a REROUTE's rupee figure is only as precise as both.
+
+### Known limitation (tied to the arrivals gap)
+
+The Book's REROUTE ranks alternative mandis by **net executable price minus freight**,
+with **no liquidity/volume filter** — because arrivals quantity is not stored. Thin
+hill-market prints (e.g. a high Onion price at an HP mandi that mostly *imports* onion)
+can therefore rank above deep production markets. The verdict shows its full working so
+the operator can judge; a volume-aware filter unblocks with the arrivals capture change.

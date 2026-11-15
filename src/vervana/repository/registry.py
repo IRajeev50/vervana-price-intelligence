@@ -292,6 +292,42 @@ def sync_mandis(session: Session, path: Path) -> dict:
     return {"added": added, "n_mandis": n_mandis, "total_observers": total_observers}
 
 
+def apply_market_coords(session: Session, path: Path) -> dict:
+    """Set latitude/longitude on existing markets from a provenance-tagged config file.
+
+    Coordinates are CONFIG, not code (M8/M11 principle): district-HQ or town-point
+    approximations carried with a `source` column, never invented precision. This is what
+    activates outbound-freight and REROUTE estimates in the Book (M17) — a market without
+    coordinates is honestly "distance unknown", never a guessed zero.
+
+    Idempotent: updates the coordinates on each named market, skips names not in the
+    registry (reported as `missing`), and overwrites prior coordinates if re-run. A row
+    with the same values is a no-op. Returns {updated, unchanged, missing}.
+    """
+    updated = unchanged = 0
+    missing: list[str] = []
+    for row in _read_csv(path):
+        name = row["canonical_name"].strip()
+        if not name:
+            continue
+        m = session.scalar(select(Market).where(Market.canonical_name == name))
+        if m is None:
+            missing.append(name)
+            continue
+        lat = float(row["latitude"])
+        lon = float(row["longitude"])
+        if m.latitude is not None and m.longitude is not None and (
+            float(m.latitude) == lat and float(m.longitude) == lon
+        ):
+            unchanged += 1
+            continue
+        m.latitude = lat
+        m.longitude = lon
+        updated += 1
+    session.flush()
+    return {"updated": updated, "unchanged": unchanged, "missing": missing}
+
+
 def bootstrap_from_agmarknet_records(session: Session, records: list[dict]) -> dict[str, int]:
     """Create commodities/markets (+ verified agmarknet_official aliases) from a live
     Agmarknet snapshot.

@@ -21,10 +21,11 @@ _spec.loader.exec_module(gen)
 
 def test_seed_loads_all_declared_risks() -> None:
     rows = gen.load_seed()
-    # 12 spec risks + R13 candidate raised in UNDERSTANDING.md.
-    assert len(rows) == 13
+    # 12 spec risks + R13 candidate (UNDERSTANDING.md) + R16/R17 carry & spoilage (M17 Book).
+    assert len(rows) == 15
     assert "R5-COVERAGE-EDGE" in rows
     assert "R13-RANGE-MIDPOINT" in rows
+    assert {"R16-CARRY-ASSUMPTION", "R17-SPOILAGE-ASSUMPTION"} <= set(rows)
 
 
 def test_generator_does_not_tag_itself() -> None:

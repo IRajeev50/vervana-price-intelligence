@@ -111,6 +111,25 @@ def registry_sync_mandis(path: Path = REPO_ROOT / "data" / "config" / "mandis.cs
     typer.echo(est_real.as_lines() if res["total_observers"] else est.as_lines())
 
 
+@registry_app.command("market-coords")
+def registry_market_coords(
+    path: Path = REPO_ROOT / "data" / "config" / "market_coords.csv",
+) -> None:
+    """Set market latitude/longitude from the provenance-tagged config (M18).
+
+    Coordinates are config, not code; they activate the Book's outbound-freight and
+    REROUTE estimates. Idempotent — safe to re-run.
+    """
+    from vervana.db.engine import session_scope
+    from vervana.repository.registry import apply_market_coords
+
+    with session_scope() as session:
+        res = apply_market_coords(session, path)
+    typer.echo(f"coords updated={res['updated']} unchanged={res['unchanged']}")
+    if res["missing"]:
+        typer.echo(f"not in registry (skipped): {', '.join(res['missing'])}", err=True)
+
+
 @registry_app.command("bootstrap")
 def registry_bootstrap(path: Path) -> None:
     """Create commodities/markets from a live Agmarknet snapshot's official names."""
