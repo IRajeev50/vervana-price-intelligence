@@ -5,11 +5,11 @@ band (validated or baseline), outbound freight, and reroute candidates, then han
 values to the pure `decision.decide`. Kept thin so the honest logic stays in the tested
 pure core.
 
-Not covered here yet (honest, deferred): the DESTINATION flood flag. Flood overlays are
-currently keyed to ORIGIN belts (supply_zones.csv has no destination zones until M19), and
-there is no market->zone map, so `decide_for_lot` passes flood=None and the UI says the
-destination flood tie-in is pending M19. The engine already supports and tests the flood
-path; only the data wiring waits.
+Destination flood flag (M19a): a lot's intended market is mapped to a riverine destination
+zone (`destination_zones.csv`); the latest recorded/fetched overlay for that zone becomes a
+`FloodFlag` passed to the engine, and a reroute into another flood-exposed zone is marked
+not flood-safe. Riverine-only, never a price feature; absence of an overlay reads as "access
+pending — NOT no risk", never as safe. The live gauge pull (M19b) stays access-gated.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from sqlalchemy import select
 
 from vervana.book.costs import carrying_cost, load_cost_rates, sell_now_cost
-from vervana.book.decision import BookDecision, ExpectedPrice, RerouteAlt, decide
+from vervana.book.decision import BookDecision, ExpectedPrice, FloodFlag, RerouteAlt, decide
 from vervana.config import get_settings
 from vervana.forecast.band import conformal_band, quantile_gb_band
 from vervana.forecast.kill import load_band_decision
@@ -28,7 +28,10 @@ from vervana.geo import haversine_km
 from vervana.models.entities import Commodity, Market
 from vervana.models.inventory import InventoryLot
 from vervana.models.observations import PriceObservation
+from vervana.repository.flood_overlay import latest_overlay_for_zone
 from vervana.repository.inventory import position_for
+from vervana.supply.destination_zones import zone_for_market
+from vervana.supply.floodhub import severity_is_risk
 
 _MIN_HISTORY = 15  # need enough days to build a usable band
 
@@ -93,6 +96,40 @@ def _expected_price(session, commodity: str, series) -> ExpectedPrice:
     )
 
 
+def _destination_flood(session, market_name: str | None) -> tuple[FloodFlag | None, str]:
+    """Resolve a market's riverine destination-flood flag and a human line for the UI.
+
+    Returns (flag, line). The flag is None (no action) unless a mapped zone has an overlay;
+    the line is always honest about which case we are in — crucially, a mapped zone with no
+    overlay says "access pending", NEVER "no flood risk".
+    """
+    zone = zone_for_market(market_name or "")
+    if zone is None:
+        return None, "flood overlay (riverine): destination not in a mapped flood zone."
+    row = latest_overlay_for_zone(session, zone.zone)
+    if row is None:
+        return None, (
+            f"flood overlay (riverine) {zone.zone}: Flood Hub access pending — no overlay "
+            f"(this is NOT 'no flood risk', just no data)."
+        )
+    is_risk = severity_is_risk(row.severity)
+    issued = row.issued_time.date().isoformat() if row.issued_time else "undated"
+    flag = FloodFlag(zone=zone.zone, severity=row.severity, is_risk=is_risk)
+    trend = f", {row.trend.lower()}" if row.trend else ""
+    line = (
+        f"flood overlay (riverine) {zone.zone}: {row.severity}{trend} "
+        f"(issued {issued}; {row.source})."
+    )
+    return flag, line
+
+
+def _market_is_flood_exposed(session, market_name: str) -> bool:
+    """True only when the market maps to a destination zone that currently carries an
+    above-normal riverine overlay — so a reroute never moves into another flooded hub."""
+    flag, _ = _destination_flood(session, market_name)
+    return flag is not None and flag.is_risk
+
+
 @dataclass(frozen=True)
 class LotDecisionContext:
     commodity: str
@@ -100,6 +137,7 @@ class LotDecisionContext:
     decision: BookDecision
     cost_rate_key: str
     note: str = ""
+    flood_line: str = ""
 
 
 def decide_for_lot(session, lot: InventoryLot, *, horizon_days: int = 14) -> LotDecisionContext:
@@ -126,6 +164,8 @@ def decide_for_lot(session, lot: InventoryLot, *, horizon_days: int = 14) -> Lot
             note="no intended market",
         )
 
+    flood, flood_line = _destination_flood(session, mname)
+
     series = price_series(session, commodity_id=lot.commodity_id, market_id=market.id)
     immediate = _latest_executable_paise(session, lot.commodity_id, market.id)
     if immediate is None or series.size == 0:
@@ -140,6 +180,7 @@ def decide_for_lot(session, lot: InventoryLot, *, horizon_days: int = 14) -> Lot
             ),
             cost_rate_key=load_cost_rates(cname).key,
             note="no price evidence",
+            flood_line=flood_line,
         )
 
     expected = _expected_price(session, cname, series)
@@ -163,13 +204,18 @@ def decide_for_lot(session, lot: InventoryLot, *, horizon_days: int = 14) -> Lot
         hold_costs=hold,
         now_costs=now,
         horizon_days=horizon_days,
-        flood=None,  # destination flood flag lands in M19 (see module docstring)
+        flood=flood,  # M19a: destination riverine overlay, or None (no zone / access pending)
         reroute=reroute,
     )
     if pos is not None:
         note = f"{pos.remaining_kg:g} kg remaining of {float(lot.quantity_kg):g} kg"
     return LotDecisionContext(
-        commodity=cname, market=mname, decision=decision, cost_rate_key=rates.key, note=note
+        commodity=cname,
+        market=mname,
+        decision=decision,
+        cost_rate_key=rates.key,
+        note=note,
+        flood_line=flood_line,
     )
 
 
@@ -210,5 +256,7 @@ def _reroute_candidate(
                 net_paise_per_kg=net,
                 reason=f"executable ₹{obs.canonical_price_paise_per_kg / 100:.2f}/kg "
                 f"less freight {outbound}p",
+                # Never reroute into another flood-exposed destination hub (M19a).
+                flood_safe=not _market_is_flood_exposed(session, mkt.canonical_name),
             )
     return best

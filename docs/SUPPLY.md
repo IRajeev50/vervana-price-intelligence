@@ -220,3 +220,31 @@ with **no liquidity/volume filter** — because arrivals quantity is not stored.
 hill-market prints (e.g. a high Onion price at an HP mandi that mostly *imports* onion)
 can therefore rank above deep production markets. The verdict shows its full working so
 the operator can judge; a volume-aware filter unblocks with the arrivals capture change.
+
+## M19a — destination flood zones (Flood Hub, access-free slice)
+
+Flood Hub (above) is keyed to **origin growing belts**. M19a adds the **destination** side:
+a consumption hub near a river corridor, so an outbound lot can carry a riverine tail-risk
+flag on its *logistics*, never its price.
+
+- **`data/config/destination_zones.csv`** — a destination zone (`delhi-yamuna`, the Yamuna
+  corridor at Delhi, ~28.61,77.29) with the Delhi hub markets it covers and a gauge
+  search-area radius for when API access lands. Kept **separate from `supply_zones.csv`** so
+  origin belts (which carry commodities) and destination zones never blur.
+- **Book wiring** (`book/service.py`): a lot's intended market → destination zone →
+  `latest_overlay_for_zone` → `FloodFlag` passed to the decision engine (which has supported
+  and tested the flood path since M17). A reroute into another flood-exposed hub is marked
+  **not flood-safe**, so the Book never moves stock from one flooded destination to another.
+- **The honest line:** every lot shows a destination flood line — the overlay severity with
+  its source when present, or *"access pending — NOT 'no flood risk', just no data"* when the
+  zone is mapped but has no overlay, or *"not in a mapped flood zone"* when it maps to none.
+
+### The access-free overlay path (`vervana supply floodhub-record`)
+
+Until the Flood Forecasting API key lands (M19b), an overlay can be recorded from an
+**official CWC/IMD riverine bulletin** with a **mandatory `source_url`** and a severity that
+must be a verified enum value — nothing is invented, nothing fabricated. This lights the
+flood-driven REROUTE path today and is identical in effect to a live pull once access lands.
+
+**Riverine-only, never a price/band feature, access-pending ≠ no risk** — all enforced as in
+M15. The live gauge pull (`floodhub-fetch`) stays access-gated and fabricates nothing.

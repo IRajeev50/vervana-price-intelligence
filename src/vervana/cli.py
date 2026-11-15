@@ -934,6 +934,57 @@ def supply_floodhub_fetch(
     )
 
 
+@supply_app.command("floodhub-record")
+def supply_floodhub_record(
+    zone: str = typer.Argument(..., help="Destination/belt zone id (e.g. delhi-yamuna)."),
+    severity: str = typer.Argument(..., help="NO_FLOODING | ABOVE_NORMAL | SEVERE | EXTREME"),
+    source_url: str = typer.Option(..., "--source-url", help="Link to the official bulletin."),
+    source: str = typer.Option(
+        "Operator-recorded from official riverine bulletin (CWC/IMD)", "--source"
+    ),
+    trend: str = typer.Option("", help="RISE | FALL | NO_CHANGE (optional)."),
+    issued: str = typer.Option("", help="ISO date the bulletin was issued (optional)."),
+) -> None:
+    """Record a riverine flood overlay from an OFFICIAL bulletin, with provenance (M19a).
+
+    The access-free path until the Flood Forecasting API key lands: an operator logs a
+    riverine status they read from an official CWC/IMD bulletin, with a mandatory source URL.
+    Nothing is invented — the severity must be a verified enum value and the source is
+    required. Idempotent on (zone, issued_time).
+    """
+    from datetime import datetime
+
+    from vervana.db.engine import session_scope
+    from vervana.repository.flood_overlay import overlay_count, record_overlays
+    from vervana.supply.floodhub import _SEVERITY_ORDER, FloodOverlay
+    from vervana.time import now_utc
+
+    if severity not in _SEVERITY_ORDER:
+        typer.echo(
+            f"invalid severity '{severity}' — use one of {', '.join(_SEVERITY_ORDER)}", err=True
+        )
+        raise typer.Exit(code=1)
+    issued_time = (
+        datetime.fromisoformat(issued).replace(tzinfo=now_utc().tzinfo) if issued else now_utc()
+    )
+    overlay = FloodOverlay(
+        zone=zone,
+        severity=severity,
+        trend=trend,
+        issued_time=issued_time,
+        valid_from=None,
+        valid_to=None,
+    )
+    with session_scope() as session:
+        res = record_overlays(session, [overlay], source=source, source_url=source_url)
+        total = overlay_count(session)
+    typer.echo(
+        f"recorded riverine overlay {zone}={severity} "
+        f"(added={res['added']} updated={res['updated']}; total in store={total})"
+    )
+    typer.echo("riverine-only; a tail-risk overlay, never a price/band feature.")
+
+
 @supply_app.command("alu")
 def supply_alu() -> None:
     """Google ALU seam status (SCAFFOLD - partner access pending)."""
@@ -1584,6 +1635,8 @@ def book_decide(lot_id: int, horizon: int = typer.Option(14, help="Hold horizon 
         ):
             for it in items:
                 typer.echo(f"  {label}: {it}")
+        if ctx.flood_line:
+            typer.echo(f"  {ctx.flood_line}")
         typer.echo("  (advisory only — nothing is executed.)")
 
 
