@@ -248,3 +248,24 @@ flood-driven REROUTE path today and is identical in effect to a live pull once a
 
 **Riverine-only, never a price/band feature, access-pending ≠ no risk** — all enforced as in
 M15. The live gauge pull (`floodhub-fetch`) stays access-gated and fabricates nothing.
+
+## M20a — belt→mandi weather link + dormant feature builder (WeatherNext, access-free)
+
+The band predicts a `(commodity, mandi)` series, so belt weather must attach to the right
+series. M20a builds that link and the ready-but-dormant feature, access-free — the live pull
+and the kill re-run (M20b) stay access-gated.
+
+- **Belt→mandi link (W3)** — `supply_zones.csv` gains a `mandis` column: each origin belt is
+  linked to the commodity-mandi series its weather informs (Onion and Capsicum belts mapped;
+  other belts left blank until needed, never proximity-guessed). `zones_for_series(commodity,
+  mandi)` resolves it. Inspect with `vervana supply weather-links`.
+- **Weather-feature builder (W4, DORMANT)** — `forecast/weather_features.py` reduces a
+  series' linked belts' latest stored forecast run to a supply-stress feature (forward precip
+  p50 sum + heat-day count over the horizon). It is **not on the live band or kill gate**.
+  Returns None when there is no link or no stored forecast (access pending) — never a
+  fabricated zero. Precip percentiles are the daily SUM approximation (M13 caveat).
+
+**It stays off the serving path until M20b:** live BigQuery access, the column mapping
+confirmed against the live catalog, and a walk-forward backtest that proves the feature beats
+the anchor + seasonal baseline. A re-run that still ships nothing is a valid result — the
+band_runner prior already expects few or no bands to clear.
