@@ -125,3 +125,21 @@ def test_rank_by_spread_widest_first_none_last():
     ]
     ranked = [s.commodity for s in rank_by_spread(studies)]
     assert ranked == ["wide", "mid", "narrow", "nodata"]
+
+
+def test_landscape_drops_junk_sub_floor_prints(session: Session):
+    c = Commodity(canonical_name="Onion")
+    session.add(c)
+    session.flush()
+    good = _market(session, "Lasalgaon", "Maharashtra")
+    junk = _market(session, "Badmarket", "Maharashtra")
+    for day in range(1, 6):
+        _price(session, c.id, good.id, 30.0, day=day)
+    _price(session, c.id, junk.id, 0.0, day=3)  # a near-zero placeholder print
+
+    st = study_commodity(session, "Onion", horizon_days=14)
+    # The junk ₹0 market is excluded: only the real market counts, so no ₹0 anchors the spread.
+    assert st.n_markets == 1
+    assert st.price_lo_paise == 3000
+    assert st.price_hi_paise == 3000
+    assert st.spread_paise == 0
