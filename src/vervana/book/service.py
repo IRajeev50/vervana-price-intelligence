@@ -16,11 +16,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from vervana.book.costs import carrying_cost, load_cost_rates, sell_now_cost
 from vervana.book.decision import BookDecision, ExpectedPrice, FloodFlag, RerouteAlt, decide
 from vervana.config import get_settings
+from vervana.db.base import SourceClass
 from vervana.forecast.band import conformal_band, quantile_gb_band
 from vervana.forecast.kill import load_band_decision
 from vervana.forecast.series import price_series
@@ -30,6 +31,7 @@ from vervana.models.inventory import InventoryLot
 from vervana.models.observations import PriceObservation
 from vervana.repository.flood_overlay import latest_overlay_for_zone
 from vervana.repository.inventory import position_for
+from vervana.repository.prices import arrivals_series
 from vervana.supply.destination_zones import zone_for_market
 from vervana.supply.floodhub import severity_is_risk
 
@@ -260,3 +262,169 @@ def _reroute_candidate(
                 flood_safe=not _market_is_flood_exposed(session, mkt.canonical_name),
             )
     return best
+
+
+# --- commodity study (M-study): analyse ANY commodity without a stored lot ------------
+#
+# The lot view answers "what should I do with THIS stock?"; the study answers "what is the
+# picture for this commodity?" It runs the same honest engine on the commodity's best-covered
+# market, holding 1 kg bought at today's price, so the kill gate, carrying economics and price
+# landscape all show — no lot required. There is no origin warehouse in a study, so outbound
+# freight and reroute are deliberately omitted (they need a real origin), never guessed.
+
+
+@dataclass(frozen=True)
+class CommodityStudy:
+    commodity: str
+    market: str | None  # the best-covered market the study is anchored on
+    n_days: int  # executed-day history at that market
+    decision: BookDecision
+    cost_rate_key: str
+    # Price landscape across every reporting market (latest executed price each), in paise/kg.
+    n_markets: int = 0
+    price_lo_paise: int | None = None
+    price_mid_paise: int | None = None
+    price_hi_paise: int | None = None
+    flood_line: str = ""
+    arrivals_note: str = ""
+
+
+def study_commodities(session) -> list[str]:
+    """Every commodity with executed-summary price data, sorted — the study picker list."""
+    rows = session.execute(
+        select(Commodity.canonical_name)
+        .join(PriceObservation, PriceObservation.commodity_id == Commodity.id)
+        .where(
+            PriceObservation.source_class == SourceClass.executed_summary,
+            PriceObservation.canonical_price_paise_per_kg.is_not(None),
+        )
+        .distinct()
+        .order_by(Commodity.canonical_name)
+    ).all()
+    return [r[0] for r in rows]
+
+
+def _representative_market(session, commodity_id: int):
+    """The market with the most executed-day history for a commodity (best series to study)."""
+    day = func.date(PriceObservation.observed_at)
+    row = session.execute(
+        select(
+            PriceObservation.market_id,
+            func.count(func.distinct(day)).label("d"),
+        )
+        .where(
+            PriceObservation.commodity_id == commodity_id,
+            PriceObservation.source_class == SourceClass.executed_summary,
+            PriceObservation.canonical_price_paise_per_kg.is_not(None),
+        )
+        .group_by(PriceObservation.market_id)
+        .order_by(func.count(func.distinct(day)).desc())
+        .limit(1)
+    ).first()
+    if row is None:
+        return None, None, 0
+    market = session.get(Market, row[0])
+    return row[0], market, int(row[1])
+
+
+def _price_landscape(session, commodity_id: int) -> tuple[int, int | None, int | None, int | None]:
+    """(n_markets, lo, mid, hi) paise from the latest executed price in each reporting market."""
+    rows = session.execute(
+        select(PriceObservation.market_id, PriceObservation.canonical_price_paise_per_kg)
+        .where(
+            PriceObservation.commodity_id == commodity_id,
+            PriceObservation.source_class == SourceClass.executed_summary,
+            PriceObservation.canonical_price_paise_per_kg.is_not(None),
+        )
+        .order_by(PriceObservation.observed_at.desc(), PriceObservation.id.desc())
+    ).all()
+    latest: dict[int, int] = {}
+    for mid, p in rows:
+        if mid not in latest:
+            latest[mid] = int(p)
+    if not latest:
+        return 0, None, None, None
+    vals = sorted(latest.values())
+    mid_val = vals[len(vals) // 2]
+    return len(vals), vals[0], mid_val, vals[-1]
+
+
+def study_commodity(session, commodity: str, *, horizon_days: int = 14) -> CommodityStudy:
+    """Advisory study of a commodity with no stored lot. Same honesty gate as the lot view."""
+    crow = session.scalar(select(Commodity).where(Commodity.canonical_name == commodity))
+    rates = load_cost_rates(commodity)
+    if crow is None:
+        return CommodityStudy(
+            commodity=commodity,
+            market=None,
+            n_days=0,
+            decision=BookDecision(
+                verdict="WAIT",
+                why=f"'{commodity}' is not a known commodity in the registry.",
+                uncertainties=["no such commodity"],
+                invalidated_if=["the commodity is seeded and prices are captured"],
+            ),
+            cost_rate_key=rates.key,
+        )
+
+    mid, market, n_days = _representative_market(session, crow.id)
+    n_markets, lo, mid_p, hi = _price_landscape(session, crow.id)
+    if market is None:
+        return CommodityStudy(
+            commodity=commodity,
+            market=None,
+            n_days=0,
+            decision=BookDecision(
+                verdict="WAIT",
+                why=f"No executable price on record for {commodity} — nothing to study yet.",
+                uncertainties=["no current price evidence"],
+                invalidated_if=["a price is captured for this commodity"],
+            ),
+            cost_rate_key=rates.key,
+            n_markets=n_markets,
+        )
+
+    flood, flood_line = _destination_flood(session, market.canonical_name)
+    series = price_series(session, commodity_id=crow.id, market_id=mid)
+    immediate = _latest_executable_paise(session, crow.id, mid)
+    expected = _expected_price(session, commodity, series)
+    # A study has no origin warehouse, so outbound freight is unknown (never a guessed zero):
+    # the carrying cost is storage + financing (on today's price as value basis) + spoilage.
+    hold = carrying_cost(
+        rates=rates,
+        purchase_price_paise_per_kg=immediate or 0,
+        expected_sale_price_paise_per_kg=expected.paise_per_kg,
+        days=horizon_days,
+        outbound_paise_per_kg=None,
+    )
+    now = sell_now_cost(None)
+    decision = decide(
+        commodity=commodity,
+        expected=expected,
+        immediate_price_paise_per_kg=immediate or 0,
+        hold_costs=hold,
+        now_costs=now,
+        horizon_days=horizon_days,
+        flood=flood,
+        reroute=None,  # a study has no origin, so no freight-based reroute (never guessed)
+    )
+
+    arr = arrivals_series(session, commodity_id=crow.id, market_id=mid)
+    arrivals_note = (
+        f"latest captured arrivals {arr[-1][1]:g} t at {market.canonical_name} ({arr[-1][0]})"
+        if arr
+        else "no arrivals captured yet (stored going forward)"
+    )
+    return CommodityStudy(
+        commodity=commodity,
+        market=market.canonical_name,
+        n_days=n_days,
+        decision=decision,
+        cost_rate_key=rates.key,
+        n_markets=n_markets,
+        price_lo_paise=lo,
+        price_mid_paise=mid_p,
+        price_hi_paise=hi,
+        flood_line=flood_line,
+        arrivals_note=arrivals_note,
+    )
