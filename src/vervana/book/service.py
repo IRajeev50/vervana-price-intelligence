@@ -345,8 +345,17 @@ def _representative_market(session, commodity_id: int):
     return row[0], market, int(row[1])
 
 
+# A market's latest canonical price below this floor is treated as junk (a bad/placeholder
+# print — nothing real trades below ₹1/kg wholesale) and excluded from the price landscape,
+# so the cross-market spread reflects genuine dispersion, not a near-zero artefact. A
+# deliberate data-cleaning assumption, applied only to the landscape — never to a lot's own
+# decision price.
+_LANDSCAPE_MIN_PAISE = 100  # ₹1.00/kg
+
+
 def _price_landscape(session, commodity_id: int) -> tuple[int, int | None, int | None, int | None]:
-    """(n_markets, lo, mid, hi) paise from the latest executed price in each reporting market."""
+    """(n_markets, lo, mid, hi) paise from the latest executed price in each reporting market,
+    excluding junk sub-floor prints (see _LANDSCAPE_MIN_PAISE)."""
     rows = session.execute(
         select(PriceObservation.market_id, PriceObservation.canonical_price_paise_per_kg)
         .where(
@@ -359,10 +368,11 @@ def _price_landscape(session, commodity_id: int) -> tuple[int, int | None, int |
     latest: dict[int, int] = {}
     for mid, p in rows:
         if mid not in latest:
-            latest[mid] = int(p)
-    if not latest:
+            latest[mid] = int(p)  # keep each market's most recent print, junk or not
+    # Drop sub-floor prints so a bad near-zero reading never anchors the spread.
+    vals = sorted(v for v in latest.values() if v >= _LANDSCAPE_MIN_PAISE)
+    if not vals:
         return 0, None, None, None
-    vals = sorted(latest.values())
     mid_val = vals[len(vals) // 2]
     return len(vals), vals[0], mid_val, vals[-1]
 
