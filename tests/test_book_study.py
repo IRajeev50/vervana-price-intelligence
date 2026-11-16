@@ -10,7 +10,13 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
-from vervana.book.service import study_commodities, study_commodity
+from vervana.book.decision import BookDecision
+from vervana.book.service import (
+    CommodityStudy,
+    rank_by_spread,
+    study_commodities,
+    study_commodity,
+)
 from vervana.db.base import SourceClass, TimeBasis
 from vervana.models.entities import Commodity, Market
 from vervana.repository.prices import insert_observation
@@ -89,3 +95,33 @@ def test_study_commodities_lists_only_those_with_executed_prices(session: Sessio
     listed = study_commodities(session)
     assert "Onion" in listed
     assert "Mango" not in listed
+
+
+def _study(name, lo, hi):
+    return CommodityStudy(
+        commodity=name,
+        market="M",
+        n_days=20,
+        decision=BookDecision(verdict="WAIT", why="x"),
+        cost_rate_key="__default__",
+        n_markets=3,
+        price_lo_paise=lo,
+        price_mid_paise=None if lo is None else (lo + hi) // 2,
+        price_hi_paise=hi,
+    )
+
+
+def test_spread_paise_is_high_minus_low_or_none():
+    assert _study("A", 1000, 9000).spread_paise == 8000
+    assert _study("B", None, None).spread_paise is None
+
+
+def test_rank_by_spread_widest_first_none_last():
+    studies = [
+        _study("narrow", 2000, 2500),  # spread 500
+        _study("wide", 1000, 9000),  # spread 8000
+        _study("nodata", None, None),  # no landscape
+        _study("mid", 3000, 5000),  # spread 2000
+    ]
+    ranked = [s.commodity for s in rank_by_spread(studies)]
+    assert ranked == ["wide", "mid", "narrow", "nodata"]

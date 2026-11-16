@@ -712,6 +712,7 @@ def book_page(
     """The Book (M17): inventory lots + advisory decisions, plus a lot-free study."""
     from vervana.book.service import (
         decide_for_lot,
+        rank_by_spread,
         study_commodities,
         study_commodity,
     )
@@ -747,11 +748,13 @@ def book_page(
 
         all_commodities = study_commodities(s)
         selected = [c for c in study if c in set(all_commodities)]
-        for name in selected:
-            st = study_commodity(s, name, horizon_days=horizon)
+        studies = [study_commodity(s, name, horizon_days=horizon) for name in selected]
+        ranked = rank_by_spread(studies)  # widest cross-market spread first
+        for rank, st in enumerate(ranked, start=1):
             d = st.decision
             study_rows.append(
                 _NS(
+                    rank=rank,
                     commodity=st.commodity,
                     market=st.market,
                     n_days=st.n_days,
@@ -759,6 +762,7 @@ def book_page(
                     price_lo=None if st.price_lo_paise is None else st.price_lo_paise / 100,
                     price_mid=None if st.price_mid_paise is None else st.price_mid_paise / 100,
                     price_hi=None if st.price_hi_paise is None else st.price_hi_paise / 100,
+                    spread=None if st.spread_paise is None else st.spread_paise / 100,
                     verdict=d.verdict,
                     why=d.why,
                     evidence=d.evidence,

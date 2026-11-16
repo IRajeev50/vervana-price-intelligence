@@ -44,17 +44,20 @@
   <h2>Commodity study — {{ study_rows|length }} selected</h2>
   <p class="page-head__sub">Lot-free analysis: each commodity on its <strong>best-covered market</strong>, holding
     1&nbsp;kg bought at today's price for the horizon above. Same honesty gate as the lots. A study has no
-    origin warehouse, so outbound freight and reroute are omitted (they need a real origin), never guessed.</p>
+    origin warehouse, so outbound freight and reroute are omitted (they need a real origin), never guessed.
+    {% if study_rows|length > 1 %}<strong>Ranked by cross-market price spread, widest first</strong> — where the
+    same commodity trades furthest apart across mandis. A wide spread flags dispersion worth a look, not a
+    HOLD/RELEASE signal.{% endif %}</p>
 </header>
 {% for r in study_rows %}
 <section class="panel" aria-labelledby="study-{{ loop.index }}">
   <div class="panel__head">
     <div>
-      <h3 id="study-{{ loop.index }}">{{ r.commodity }}{% if r.market %} · {{ r.market }}{% endif %}</h3>
+      <h3 id="study-{{ loop.index }}">{% if study_rows|length > 1 %}<span class="muted">#{{ r.rank }}</span> {% endif %}{{ r.commodity }}{% if r.market %} · {{ r.market }}{% endif %}</h3>
       <p class="muted small">
-        {% if r.price_mid is not none %}latest median ₹{{ '%.2f'|format(r.price_mid) }}/kg
-        · spread ₹{{ '%.2f'|format(r.price_lo) }}–₹{{ '%.2f'|format(r.price_hi) }}/kg across {{ r.n_markets }} market(s)
-        · {{ r.n_days }}d history{% else %}no price evidence yet{% endif %}</p>
+        {% if r.price_mid is not none %}spread <strong>₹{{ '%.2f'|format(r.spread) }}/kg</strong>
+        (₹{{ '%.2f'|format(r.price_lo) }}–₹{{ '%.2f'|format(r.price_hi) }}) · median ₹{{ '%.2f'|format(r.price_mid) }}/kg
+        · {{ r.n_markets }} market(s) · {{ r.n_days }}d history{% else %}no price evidence yet{% endif %}</p>
     </div>
     <span class="spread-chip {{ 'spread-chip--high' if r.verdict == 'RELEASE' else ('spread-chip--medium' if r.verdict == 'REROUTE' else ('spread-chip--low' if r.verdict == 'HOLD' else 'spread-chip--na')) }}">{{ r.verdict }}</span>
   </div>
