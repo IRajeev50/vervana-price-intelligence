@@ -1666,6 +1666,43 @@ def book_decide(lot_id: int, horizon: int = typer.Option(14, help="Hold horizon 
         typer.echo("  (advisory only — nothing is executed.)")
 
 
+@book_app.command("study")
+def book_study(
+    commodity: str = typer.Argument(..., help="Commodity to study (no lot needed)."),
+    horizon: int = typer.Option(14, help="Hypothetical hold horizon in days."),
+) -> None:
+    """Lot-free advisory study of any commodity on its best-covered market."""
+    from vervana.book.service import study_commodity
+    from vervana.db.engine import session_scope
+
+    with session_scope() as session:
+        st = study_commodity(session, commodity, horizon_days=horizon)
+    d = st.decision
+    head = st.commodity + (f" · {st.market}" if st.market else "")
+    typer.echo(f"study: {head}")
+    if st.price_mid_paise is not None:
+        typer.echo(
+            f"  latest median ₹{st.price_mid_paise / 100:.2f}/kg · spread "
+            f"₹{st.price_lo_paise / 100:.2f}–₹{st.price_hi_paise / 100:.2f}/kg across "
+            f"{st.n_markets} market(s) · {st.n_days}d history"
+        )
+    typer.echo(f"  VERDICT: {d.verdict}")
+    typer.echo(f"  why: {d.why}")
+    for label, items in (
+        ("evidence", d.evidence),
+        ("assumptions", d.assumptions),
+        ("uncertainties", d.uncertainties),
+        ("invalidated if", d.invalidated_if),
+    ):
+        for it in items:
+            typer.echo(f"  {label}: {it}")
+    if st.flood_line:
+        typer.echo(f"  {st.flood_line}")
+    if st.arrivals_note:
+        typer.echo(f"  arrivals: {st.arrivals_note}")
+    typer.echo("  (advisory only — nothing is executed.)")
+
+
 @book_app.command("costs")
 def book_costs(commodity: str = typer.Argument("")) -> None:
     """Print the carrying-cost assumptions (all rates visible, from book_costs.csv)."""

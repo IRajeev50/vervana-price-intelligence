@@ -16,7 +16,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from types import SimpleNamespace as _NS
 
-from fastapi import Depends, FastAPI, Form, HTTPException, Request
+from fastapi import Depends, FastAPI, Form, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -704,12 +704,21 @@ async def sourcing_register_submit(request: Request):
 
 
 @app.get("/book", response_class=HTMLResponse)
-def book_page(request: Request, horizon: int = 14):
-    """The Book (M17): inventory positions + advisory hold/release decisions."""
-    from vervana.book.service import decide_for_lot
+def book_page(
+    request: Request,
+    horizon: int = 14,
+    study: list[str] = Query(default=[]),  # noqa: B008 — FastAPI query-list default idiom
+):
+    """The Book (M17): inventory lots + advisory decisions, plus a lot-free study."""
+    from vervana.book.service import (
+        decide_for_lot,
+        study_commodities,
+        study_commodity,
+    )
     from vervana.repository.inventory import current_positions
 
     rows = []
+    study_rows = []
     with session_scope() as s:
         for pos in current_positions(s):
             commodity = s.get(Commodity, pos.lot.commodity_id)
@@ -735,8 +744,43 @@ def book_page(request: Request, horizon: int = 14):
                     flood_line=ctx.flood_line,
                 )
             )
+
+        all_commodities = study_commodities(s)
+        selected = [c for c in study if c in set(all_commodities)]
+        for name in selected:
+            st = study_commodity(s, name, horizon_days=horizon)
+            d = st.decision
+            study_rows.append(
+                _NS(
+                    commodity=st.commodity,
+                    market=st.market,
+                    n_days=st.n_days,
+                    n_markets=st.n_markets,
+                    price_lo=None if st.price_lo_paise is None else st.price_lo_paise / 100,
+                    price_mid=None if st.price_mid_paise is None else st.price_mid_paise / 100,
+                    price_hi=None if st.price_hi_paise is None else st.price_hi_paise / 100,
+                    verdict=d.verdict,
+                    why=d.why,
+                    evidence=d.evidence,
+                    assumptions=d.assumptions,
+                    uncertainties=d.uncertainties,
+                    invalidated_if=d.invalidated_if,
+                    flood_line=st.flood_line,
+                    arrivals_note=st.arrivals_note,
+                )
+            )
+
     return TEMPLATES.TemplateResponse(
-        request, "book.html", _ctx(request, rows=rows, horizon=horizon)
+        request,
+        "book.html",
+        _ctx(
+            request,
+            rows=rows,
+            horizon=horizon,
+            all_commodities=all_commodities,
+            selected=selected,
+            study_rows=study_rows,
+        ),
     )
 
 

@@ -17,7 +17,8 @@
     <strong>today's price held flat</strong> and the verdict is gated to <strong>WAIT</strong> — the Book never
     issues a confident HOLD/RELEASE off an unvalidated forward price. Carrying-cost rates are visible
     assumptions <span class="mono">(RISK[R16]/R17)</span>; freight reuses the sourcing estimate
-    <span class="mono">(R15)</span>. Destination flood exposure lands in M19.
+    <span class="mono">(R15)</span>. Destination riverine flood exposure is shown per lot (M19a);
+    live gauge data is access-pending.
   </div>
 </div>
 
@@ -26,9 +27,56 @@
     <label for="horizon">Hold horizon (days)</label>
     <input class="input" id="horizon" name="horizon" type="number" min="1" max="120" value="{{ horizon }}">
   </div>
-  <button class="btn" type="submit">Recompute</button>
+  <div class="field" style="min-width:16rem;flex:1 1 18rem">
+    <label for="study">Study any commodities <span class="muted small">(Ctrl/Cmd-click for several)</span></label>
+    <select class="input" id="study" name="study" multiple size="8">
+      {% for c in all_commodities %}
+      <option value="{{ c }}" {{ 'selected' if c in selected }}>{{ c }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button class="btn" type="submit">Analyse</button>
 </form>
 
+{% if study_rows %}
+<header class="page-head" style="margin-top:1.5rem">
+  <div class="page-head__kicker">Commercial · study</div>
+  <h2>Commodity study — {{ study_rows|length }} selected</h2>
+  <p class="page-head__sub">Lot-free analysis: each commodity on its <strong>best-covered market</strong>, holding
+    1&nbsp;kg bought at today's price for the horizon above. Same honesty gate as the lots. A study has no
+    origin warehouse, so outbound freight and reroute are omitted (they need a real origin), never guessed.</p>
+</header>
+{% for r in study_rows %}
+<section class="panel" aria-labelledby="study-{{ loop.index }}">
+  <div class="panel__head">
+    <div>
+      <h3 id="study-{{ loop.index }}">{{ r.commodity }}{% if r.market %} · {{ r.market }}{% endif %}</h3>
+      <p class="muted small">
+        {% if r.price_mid is not none %}latest median ₹{{ '%.2f'|format(r.price_mid) }}/kg
+        · spread ₹{{ '%.2f'|format(r.price_lo) }}–₹{{ '%.2f'|format(r.price_hi) }}/kg across {{ r.n_markets }} market(s)
+        · {{ r.n_days }}d history{% else %}no price evidence yet{% endif %}</p>
+    </div>
+    <span class="spread-chip {{ 'spread-chip--high' if r.verdict == 'RELEASE' else ('spread-chip--medium' if r.verdict == 'REROUTE' else ('spread-chip--low' if r.verdict == 'HOLD' else 'spread-chip--na')) }}">{{ r.verdict }}</span>
+  </div>
+  <p><strong>{{ r.why }}</strong></p>
+  {% if r.evidence or r.assumptions %}
+  <div class="method-grid">
+    <div><div class="eyebrow">Evidence</div><ul class="tight">{% for e in r.evidence %}<li>{{ e }}</li>{% endfor %}</ul></div>
+    <div><div class="eyebrow">Assumptions</div><ul class="tight">{% for a in r.assumptions %}<li>{{ a }}</li>{% endfor %}</ul></div>
+    <div><div class="eyebrow">Uncertainties</div><ul class="tight">{% for u in r.uncertainties %}<li>{{ u }}</li>{% endfor %}</ul></div>
+    <div><div class="eyebrow">Invalidated if</div><ul class="tight">{% for i in r.invalidated_if %}<li>{{ i }}</li>{% endfor %}</ul></div>
+  </div>
+  {% endif %}
+  {% if r.flood_line %}<p class="muted small"><span aria-hidden="true">≈</span> {{ r.flood_line }}</p>{% endif %}
+  {% if r.arrivals_note %}<p class="muted small"><span aria-hidden="true">⤓</span> {{ r.arrivals_note }}</p>{% endif %}
+</section>
+{% endfor %}
+{% endif %}
+
+<header class="page-head" style="margin-top:1.5rem">
+  <div class="page-head__kicker">Commercial · inventory</div>
+  <h2>Your lots</h2>
+</header>
 {% if not rows %}
 <div class="empty"><span class="empty__ico" aria-hidden="true">◌</span>
   <div class="empty__title">The book is empty</div>
