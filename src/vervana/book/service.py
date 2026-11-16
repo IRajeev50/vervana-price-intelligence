@@ -288,6 +288,24 @@ class CommodityStudy:
     flood_line: str = ""
     arrivals_note: str = ""
 
+    @property
+    def spread_paise(self) -> int | None:
+        """High minus low of the latest-per-market prices — the cross-market dispersion.
+        None when the commodity has no price landscape yet (never a guessed zero)."""
+        if self.price_lo_paise is None or self.price_hi_paise is None:
+            return None
+        return self.price_hi_paise - self.price_lo_paise
+
+
+def rank_by_spread(studies: list[CommodityStudy]) -> list[CommodityStudy]:
+    """Order studies by cross-market price spread, widest first; studies with no landscape
+    (no spread) sort last. A wide spread flags where the same commodity trades far apart
+    across mandis — the dispersion worth a closer look. Not a HOLD/RELEASE signal."""
+    return sorted(
+        studies,
+        key=lambda s: (s.spread_paise is None, -(s.spread_paise or 0)),
+    )
+
 
 def study_commodities(session) -> list[str]:
     """Every commodity with executed-summary price data, sorted — the study picker list."""
